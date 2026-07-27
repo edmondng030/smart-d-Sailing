@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sail Away — 小船航海</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="world" aria-label="互動式 3D 航海場景"></canvas>
+  <div id="app">
+    <section id="menu" class="screen active">
+      <div class="menu-sky"></div><div class="menu-sea"></div>
+      <div class="distant-islands"></div>
+      <div class="hero-boat boat"><span class="mast"></span><span class="sail main-sail"></span><span class="sail jib"></span><span class="hull"></span></div>
+      <header class="topbar"><div class="brand"><span class="brand-mark">⚓</span><span>SAIL AWAY</span></div><div class="top-actions"><button class="icon-btn" data-open="help">?</button><button class="icon-btn" data-open="settings">⚙</button></div></header>
+      <div class="title-block"><p class="eyebrow">THE OPEN SEA IS CALLING</p><h1>SAIL<br><i>AWAY</i></h1><p class="subtitle">讓風帶你去更遠的地方</p></div>
+      <nav class="main-nav">
+        <button class="nav-btn primary" data-open="weather"><span>揚帆啟程</span><small>START VOYAGE</small></button>
+        <button class="nav-btn" data-action="continue"><span>繼續航程</span><small>CONTINUE</small></button>
+        <button class="nav-btn" data-open="customize"><span>船塢</span><small>BOATYARD</small></button>
+        <button class="nav-btn" data-open="settings"><span>設定</span><small>SETTINGS</small></button>
+      </nav>
+      <div class="menu-footer"><span>航海日誌 07</span><span>探索度 28%</span><span>v1.0</span></div>
+    </section>
+
+    <section id="game" class="screen">
+      <div class="game-sky"><div class="sun"></div><div class="cloud c1"></div><div class="cloud c2"></div></div>
+      <div class="game-islands"><span></span><span></span><span></span></div><div class="game-sea"><i></i><i></i><i></i><i></i></div>
+      <div class="game-boat boat"><span class="mast"></span><span class="sail main-sail"></span><span class="sail jib"></span><span class="hull"></span></div>
+      <div class="wake"></div>
+      <div class="hud top-left"><div class="compass"><b id="heading">NE</b><span>045°</span></div><div class="weather-pill">☀ 晴朗 · 風力 3 級</div></div>
+      <div class="hud top-right"><div class="resource">● <b id="coins">1,250</b></div><div class="resource">✦ 28</div><button class="hud-btn" data-open="settings">☰</button></div>
+      <div class="wind-dial"><span>風向</span><b>↗</b><small>12 kn</small></div>
+      <div class="speed"><b id="speed">6.2</b><span>kn</span><div class="speed-bar"><i></i></div></div>
+      <div class="game-actions"><button data-action="anchor">⚓<span>下錨</span></button><button data-open="map">⌖<span>海圖</span></button><button data-open="customize">◭<span>船隻</span></button></div>
+      <div class="tip" id="tip">W / S 控制船帆 · A / D 改變航向</div>
+      <button class="back-menu" data-action="home">ESC　返回主選單</button>
+    </section>
+
+    <div id="overlay" class="overlay" aria-hidden="true">
+      <div class="modal" id="weather">
+        <button class="close" data-close>×</button><div class="modal-title"><p>準備出航</p><h2>天氣與時間</h2></div>
+        <div class="weather-layout"><div><h3>選擇天氣</h3><div class="weather-grid">
+          <button class="weather-card selected" data-weather="晴朗"><b>☀</b><span>晴朗</span></button><button class="weather-card" data-weather="多雲"><b>☁</b><span>多雲</span></button><button class="weather-card" data-weather="黃昏"><b>◐</b><span>黃昏</span></button><button class="weather-card" data-weather="霧氣"><b>≋</b><span>霧氣</span></button><button class="weather-card" data-weather="夜晚"><b>☾</b><span>夜晚</span></button><button class="weather-card locked"><b>🌧</b><span>雨天</span><small>等級 4</small></button>
+        </div></div><div class="time-panel"><h3>時間設定</h3><div class="time-arc"><span class="time-sun">●</span><i></i><b id="timeLabel">14:30</b></div><input id="timeRange" type="range" min="6" max="22" step=".5" value="14.5"/><h3>帆風強度</h3><div class="segmented"><button>微風</button><button class="selected">適中</button><button>強風</button></div></div></div>
+        <button class="cta" data-action="start">開始航行 <span>→</span></button>
+      </div>
+
+      <div class="modal wide" id="customize"><button class="close" data-close>×</button><div class="modal-title"><p>船塢</p><h2>打造你的帆船</h2></div>
+        <div class="custom-layout"><div class="boat-preview"><div class="preview-water"></div><div class="preview-boat boat"><span class="mast"></span><span class="sail main-sail"></span><span class="sail jib"></span><span class="hull"></span></div><button class="rotate left">‹</button><button class="rotate right">›</button></div>
+        <div class="custom-panel"><div class="tabs"><button class="active" data-tab="sails">帆款</button><button data-tab="colors">顏色</button><button data-tab="upgrade">升級</button></div><div class="tab-content" id="sails"><h3>航海帆布</h3><div class="sail-options"><button class="selected"><i class="mini-sail classic"></i>經典</button><button><i class="mini-sail dark"></i>午夜</button><button><i class="mini-sail stripe"></i>遠航</button></div></div><div class="tab-content hidden" id="colors"><h3>船身顏色</h3><div class="color-options"><button style="--c:#d9c49b"></button><button style="--c:#c95f45"></button><button style="--c:#274f6d"></button><button style="--c:#18232b"></button><button style="--c:#f1eee6"></button></div></div><div class="tab-content hidden" id="upgrade"><h3>船隻性能</h3><label>速度 <progress value="72" max="100"></progress></label><label>操控 <progress value="58" max="100"></progress></label><label>耐風 <progress value="84" max="100"></progress></label></div><button class="cta small" data-close>套用變更</button></div></div>
+      </div>
+
+      <div class="modal wide" id="map"><button class="close" data-close>×</button><div class="modal-title"><p>航海圖</p><h2>群島探索</h2></div><div class="map-canvas">
+        <div class="map-lines"></div><div class="island isle1"><i></i><span>翡翠灣<br><small>已探索</small></span></div><div class="island isle2"><i></i><span>燈塔島<br><small>距離 3.2 nm</small></span></div><div class="island isle3 locked-isle"><i></i><span>迷霧群島<br><small>未知水域</small></span></div><div class="ship-marker">▲<span>你的位置</span></div><div class="treasure">◆</div><div class="map-stats"><p>探索進度</p><b>28%</b><progress value="28" max="100"></progress><hr><span>☼ 港口　◆ 寶藏　▲ 航標</span></div>
+      </div></div>
+
+      <div class="modal settings-modal" id="settings"><button class="close" data-close>×</button><div class="modal-title"><p>偏好設定</p><h2>設定</h2></div><div class="settings-layout"><div class="settings-nav"><button class="active">遊戲</button><button>音效</button><button>操作</button><button>語言</button></div><div class="settings-content"><label>畫面品質 <select><option>高</option><option>中</option><option>低</option></select></label><label>亮度 <input type="range" value="65"></label><label>音樂 <input type="range" value="72"></label><label>音效 <input type="range" value="82"></label><label class="toggle-row">動態模糊 <input type="checkbox" checked><i></i></label></div></div><button class="cta small" data-close>儲存設定</button></div>
+      <div class="modal help-modal" id="help"><button class="close" data-close>×</button><div class="modal-title"><p>航海指南</p><h2>船長，準備好了嗎？</h2></div><div class="key-grid"><span><kbd>W</kbd><kbd>S</kbd><b>調整船帆</b></span><span><kbd>A</kbd><kbd>D</kbd><b>改變航向</b></span><span><kbd>Space</kbd><b>加速</b></span><span><kbd>M</kbd><b>開啟海圖</b></span></div><p class="help-copy">留意風向，調整船帆角度，在群島間自由航行。探索未知海域、發現寶藏，寫下屬於你的航海日誌。</p><button class="cta small" data-close>明白了</button></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
