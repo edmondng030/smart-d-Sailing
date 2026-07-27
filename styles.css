@@ -34,3 +34,21 @@
 .toast{z-index:60}.modal,.overlay{z-index:20}
 @keyframes world-in{from{opacity:0}to{opacity:1}}@keyframes hud-in{from{opacity:0}to{opacity:1}}
 @media(max-width:700px){.hero-copy{left:7%;top:12%}.hero-copy h1{font-size:58px;letter-spacing:-4px}.hero-copy .tagline{letter-spacing:3px}.main-nav{top:48%;right:6%;width:88vw}.menu-footer{left:20px;right:20px}.topbar{padding:18px 20px}.screen{background:linear-gradient(180deg,rgba(6,24,35,.08),transparent 35%,rgba(3,17,26,.28))}}
+
+/* Reference-inspired cinematic HUD */
+#game.active{background:radial-gradient(circle at 50% 48%,transparent 46%,rgba(2,16,28,.18) 100%)}
+#game .top-left{top:18px;left:18px;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+#game .compass{width:112px;height:112px;border-radius:50%;display:grid;place-content:center;text-align:center;padding:0;border:2px solid #d9edf0b8;background:radial-gradient(circle,#173d5275 0 44%,#0b2c41c9 46% 63%,#d7e8e72e 64% 66%,#0b2c41b8 67%);box-shadow:0 8px 28px #001b2b66,inset 0 0 0 6px #ffffff0b}
+#game .compass:before{content:"N";position:absolute;top:8px;left:50%;transform:translateX(-50%);font:700 12px Arial;color:#f4ead4;text-shadow:0 1px 2px #000}
+#game .compass:after{content:"▲";position:absolute;left:50%;top:34px;transform:translateX(-50%);font-size:23px;color:#e2ad4e;filter:drop-shadow(0 2px 2px #051b27)}
+#game .compass b{margin:36px 0 0;font-size:13px;color:#f7f1e5;letter-spacing:2px}#game .compass span{font-size:9px;color:#b9d0d7}
+#game .weather-pill{width:126px;min-height:68px;border-radius:15px;padding:12px 15px;background:linear-gradient(135deg,#183d52d9,#0b2b40bf);border:1px solid #dcebed55;box-shadow:0 10px 25px #001a2b55;color:#e9f0ef;font-size:12px;line-height:2;letter-spacing:1px}
+#game .weather-pill::first-letter{color:#e9c373}.wind-dial{display:none}
+#game .top-right{top:16px;right:16px;gap:4px}.resource{height:44px;display:flex;align-items:center;padding:0 15px;border-radius:13px;background:#102e43cc;border:1px solid #dcebee52;box-shadow:0 8px 24px #001a2b55;font-size:15px}.resource b{font-size:17px}.resource:first-child{color:#ffd36f}.hud-btn{width:45px;height:45px;border-radius:13px;font-size:20px}
+.speed{left:50%;right:auto;bottom:13px;transform:translateX(-50%);display:flex;align-items:baseline;gap:7px;background:#0b2b3fa8;border:1px solid #dcebee42;border-radius:22px;padding:4px 24px 5px;min-width:148px;text-align:center;backdrop-filter:blur(12px);box-shadow:0 8px 28px #00172566}.speed b{font:700 28px/1 Arial,sans-serif}.speed span{font:600 13px Arial;color:#d4e2e5}.speed-bar{display:none}
+.game-actions{left:18px;bottom:18px;width:128px;height:128px;border-radius:50%;display:block;background:radial-gradient(circle,#cddce3bb 0 21%,#13394dbf 23% 56%,#dce8e833 58% 60%,#092b40c9 62%);border:2px solid #dcebee8a;box-shadow:0 12px 30px #001a2b66,inset 0 0 0 7px #ffffff0a}
+.game-actions:before,.game-actions:after{position:absolute;left:50%;transform:translateX(-50%);color:#e7efef;font-size:16px}.game-actions:before{content:"▲";top:8px}.game-actions:after{content:"▼";bottom:8px}
+.game-actions button{position:absolute;width:32px;height:32px;border:0;background:transparent;backdrop-filter:none;color:#edf4f3;padding:0;font-size:14px}
+.game-actions button span{display:none}.game-actions button:nth-child(1){left:4px;top:48px}.game-actions button:nth-child(2){right:4px;top:48px}.game-actions button:nth-child(3){position:fixed;right:18px;left:auto;bottom:18px;top:auto;width:66px;height:66px;border-radius:50%;background:#0b2b40ce;border:2px solid #dcebee99;font-size:27px;box-shadow:0 10px 26px #00192a66}.game-actions button:nth-child(4){position:fixed;right:18px;left:auto;bottom:100px;top:auto;width:56px;height:56px;border-radius:50%;background:#0b2b40ce;border:2px solid #dcebee99;font-size:22px;box-shadow:0 10px 26px #00192a66}
+.game-actions button:hover{transform:scale(1.08);color:#f2ca72}.tip{bottom:55px;background:#09283b8c}.back-menu{right:19px;top:76px;border-radius:10px}
+@media(max-width:700px){#game .compass{width:90px;height:90px}#game .weather-pill{width:105px;padding:8px 10px;font-size:10px}.game-actions{transform:scale(.78);transform-origin:bottom left}.resource{padding:0 9px}.tip{display:none}}
