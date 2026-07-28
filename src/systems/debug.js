@@ -12,6 +12,8 @@ export function createDebugPanel(scene,boatRoot,boatPhysics,ocean,environment){
   const ranges={waveAmplitude:[.2,2,.01],waveDirection:[-180,180,1],waveSpeed:[.2,2,.01],windSpeed:[0,20,.1],windDirection:[-180,180,1],buoyancyStrength:[100,1200,10],buoyancyDamping:[20,300,5],forwardDrag:[.1,4,.05],sideDrag:[1,9,.1],boatMass:[80,600,5],centreOfMass:[-.5,.5,.01],sailForce:[.1,4,.05],rudderEfficiency:[.1,3,.05],exposure:[.2,1.5,.01],sunElevation:[-10,90,1],shadowBounds:[8,60,1],fogDensity:[0,.01,.0001],foamThreshold:[.1,.9,.01]};
   Object.entries(values).forEach(([key,value])=>{const[min,max,step]=ranges[key],label=document.createElement('label');label.innerHTML=`<span>${labels[key]} <output>${value}</output></span><input type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${value}">`;fields.append(label)});
 
+  const oceanDebug=document.createElement('label');oceanDebug.innerHTML='<span>Ocean debug</span><select data-ocean-debug><option value="final">Final</option><option value="cascades">Cascade bands</option><option value="normals">Normals</option><option value="foam">Foam history</option><option value="fresnel">Fresnel</option><option value="reflection">Reflection</option><option value="absorption">Absorption</option><option value="no-foam">Final without foam</option><option value="no-detail">Final without detail</option><option value="jacobian">Jacobian</option></select>';fields.append(oceanDebug);
+
   const debugGroup=new THREE.Group();debugGroup.name='PhysicsDebug';debugGroup.visible=false;scene.add(debugGroup);
   const localMarkers=new THREE.Group();localMarkers.visible=false;boatRoot.add(localMarkers);
   boatPhysics.buoyancyPoints.forEach(point=>{const marker=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),new THREE.MeshBasicMaterial({color:'#48e8ff',depthTest:false}));marker.position.copy(point);localMarkers.add(marker)});
@@ -32,6 +34,7 @@ export function createDebugPanel(scene,boatRoot,boatPhysics,ocean,environment){
     const bounds=values.shadowBounds,camera=environment.sunLight.shadow.camera;camera.left=camera.bottom=-bounds;camera.right=camera.top=bounds;camera.updateProjectionMatrix();centre.position.y=values.centreOfMass;
   }
   panel.addEventListener('input',event=>{const input=event.target,key=input.dataset.key;if(!key)return;values[key]=+input.value;input.previousElementSibling.querySelector('output').textContent=values[key];applyValues()});
+  panel.querySelector('[data-ocean-debug]').addEventListener('change',event=>ocean.setDebugMode(event.target.value));
   panel.querySelector('[data-debug-visuals]').addEventListener('click',event=>{debugGroup.visible=localMarkers.visible=shadowHelper.visible=!debugGroup.visible;event.target.textContent=debugGroup.visible?'ON':'OFF'});
   addEventListener('keydown',event=>{if(event.key==='F8'){event.preventDefault();panel.classList.toggle('open')}});
 

@@ -4,9 +4,9 @@ import { validateFragmentIFFT } from './fft-pipeline.js';
 import { SpectralOceanSystem } from './ocean-system.js';
 
 const QUALITY = {
-  low: { resolution: 64, detailSize: 128 },
+  low: { resolution: 128, detailSize: 128 },
   medium: { resolution: 128, detailSize: 192 },
-  high: { resolution: 128, detailSize: 256 },
+  high: { resolution: 256, detailSize: 256 },
   ultra: { resolution: 256, detailSize: 384 }
 };
 
@@ -53,29 +53,29 @@ export function createSpectralLayer(renderer, qualityName = 'high') {
         boundaryFactor: 6,
         gravity: 9.81,
         depth: 500,
-        choppiness: 1.3,
+        choppiness: 1.05,
         foamRecovery: .4,
         amplitude: 1,
         seed: 481516,
         local: {
-          scale: .85,
-          windSpeed: 13,
-          directionDegrees: 14,
-          fetchMeters: 100000,
-          directionality: .82,
-          swell: .2,
-          peakEnhancement: 3.3,
-          shortWaveFade: .02
+          scale: .55,
+          windSpeed: 9,
+          directionDegrees: 88,
+          fetchMeters: 45000,
+          directionality: .38,
+          swell: .12,
+          peakEnhancement: 2.4,
+          shortWaveFade: .045
         },
         swell: {
-          scale: .48,
-          windSpeed: 3,
-          directionDegrees: 58,
-          fetchMeters: 300000,
-          directionality: .9,
-          swell: 1,
-          peakEnhancement: 3.3,
-          shortWaveFade: .01
+          scale: .26,
+          windSpeed: 5,
+          directionDegrees: 42,
+          fetchMeters: 180000,
+          directionality: .48,
+          swell: .75,
+          peakEnhancement: 2.6,
+          shortWaveFade: .025
         }
       });
     } catch (error) {
@@ -97,7 +97,16 @@ export function createSpectralLayer(renderer, qualityName = 'high') {
     get active() { return Boolean(system); },
     get cascades() { return system?.cascades || fallbackCascades; },
     get detailTexture() { return detailTexture; },
-    get diagnostics() { return { ...validation, quality: currentQuality, resolution: QUALITY[currentQuality]?.resolution || 0 }; },
+    get diagnostics() {
+      const resolution = QUALITY[currentQuality]?.resolution || 0;
+      const cascadeCount = system?.cascades.length || 0;
+      const renderTargetCount = cascadeCount * 11;
+      const estimatedMemoryMB = resolution ? (renderTargetCount * resolution * resolution * 8 + cascadeCount * resolution * resolution * 16) / 1048576 : 0;
+      return {
+        ...validation, quality: currentQuality, resolution, seed: 481516, cascadeCount,
+        patchLengths: [250, 17, 5], renderTargetCount, estimatedMemoryMB: Number(estimatedMemoryMB.toFixed(2))
+      };
+    },
     update,
     setQuality: build,
     dispose() {

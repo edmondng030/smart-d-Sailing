@@ -1,29 +1,157 @@
 import * as THREE from 'three';
+import { BOAT } from '../config.js';
 
-const desiredPosition=new THREE.Vector3(),desiredTarget=new THREE.Vector3(),localOffset=new THREE.Vector3(),forward=new THREE.Vector3(),side=new THREE.Vector3();
-const stableQuaternion=new THREE.Quaternion(),yawEuler=new THREE.Euler(0,0,0,'YXZ');
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const desiredPosition = new THREE.Vector3();
+const desiredTarget = new THREE.Vector3();
+const desiredQuaternion = new THREE.Quaternion();
+const localOffset = new THREE.Vector3();
+const forward = new THREE.Vector3();
+const side = new THREE.Vector3();
+const stableQuaternion = new THREE.Quaternion();
+const yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const lookMatrix = new THREE.Matrix4();
 
-export function createFollowCamera(camera){
-  let mode=0,shake=0;
-  const offsets=[new THREE.Vector3(0,4.7,10.4),new THREE.Vector3(.2,2.65,1.8),new THREE.Vector3(9,6.4,12.5)];
+const CAMERA_MODES = [
+  { name: 'chase', offset: [.52, .9, 1.85], targetForward: .65, targetUp: .5, fov: 44, response: 8.5 },
+  { name: 'deck', offset: [.05, .73, .42], targetForward: 1.05, targetUp: .5, fov: 50, response: 12 },
+  { name: 'cinematic', offset: [2.45, 1.25, 2.6], targetForward: .38, targetUp: .55, fov: 42, response: 5.4 }
+];
 
-  function setMode(next){mode=((next%offsets.length)+offsets.length)%offsets.length;return mode}
-  function addImpact(amount){shake=Math.max(shake,amount)}
+const CAMERA_BOOKMARKS = Object.freeze({ near: 1, design: 0, far: 2 });
 
-  function update(dt,boatTransform,speedKnots,environment,enabled=true){
-    const q=boatTransform.quaternion;yawEuler.setFromQuaternion(q);yawEuler.x=0;yawEuler.z=0;stableQuaternion.setFromEuler(yawEuler);
-    localOffset.copy(offsets[mode]);desiredPosition.copy(localOffset).applyQuaternion(stableQuaternion).add(boatTransform.position);
-    forward.set(0,0,-1).applyQuaternion(stableQuaternion);side.set(1,0,0).applyQuaternion(stableQuaternion);
-    const turnLag=THREE.MathUtils.clamp(boatTransform.angularHint||0,-1,1);desiredPosition.addScaledVector(side,-turnLag*.55);
-    desiredTarget.copy(boatTransform.position).addScaledVector(forward,mode===1?4.2:5.3);desiredTarget.y+=mode===1?1.9:1.25;
-    if(enabled){
-      const storm=environment.waveIntensity>1.1?(environment.waveIntensity-1.1)*.12:0;
-      shake=THREE.MathUtils.damp(shake,storm,4,dt);
-      if(shake>.001){const t=environment.time*17;desiredPosition.x+=Math.sin(t*1.7)*shake;desiredPosition.y+=Math.sin(t*2.3)*shake*.55}
-    }
-    camera.position.lerp(desiredPosition,1-Math.exp(-dt*4));camera.userData.target=camera.userData.target||desiredTarget.clone();camera.userData.target.lerp(desiredTarget,1-Math.exp(-dt*6));camera.lookAt(camera.userData.target);
-    const targetFov=48+Math.min(speedKnots,12)*.28;camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,3,dt);camera.updateProjectionMatrix();
+export function createFollowCamera(camera) {
+  let mode = 0;
+  let shake = 0;
+  let lagDistance = 0;
+  let lagVelocity = 0;
+  let transition = null;
+  let bookmark = null;
+  let frozenPose = null;
+
+  function setMode(next) {
+    const resolved = ((next % CAMERA_MODES.length) + CAMERA_MODES.length) % CAMERA_MODES.length;
+    if (resolved === mode && !bookmark) return mode;
+    mode = resolved;
+    bookmark = null;
+    frozenPose = null;
+    transition = {
+      elapsed: 0,
+      duration: .9,
+      startPosition: camera.position.clone(),
+      startQuaternion: camera.quaternion.clone(),
+      startFov: camera.fov
+    };
+    return mode;
   }
 
-  return {update,setMode,addImpact,get mode(){return mode}};
+  function setBookmark(name = null) {
+    bookmark = Object.hasOwn(CAMERA_BOOKMARKS, name) ? name : null;
+    if (bookmark) mode = CAMERA_BOOKMARKS[bookmark];
+    frozenPose = null;
+    transition = null;
+    return bookmark;
+  }
+
+  function addImpact(amount) {
+    shake = Math.max(shake, amount);
+  }
+
+  function updateLag(dt, speedKnots) {
+    const active = mode === 0 && speedKnots > 1;
+    const targetDrive = active ? THREE.MathUtils.clamp((speedKnots - 1) / 10, 0, 1) * BOAT.length * .55 : 0;
+    const stiffness = active ? 6 : 34;
+    const dampingRatio = active ? 1.04 : 1.3;
+    const damping = 2 * dampingRatio * Math.sqrt(stiffness);
+    const acceleration = (active ? targetDrive * 7.5 : 0) - stiffness * lagDistance - damping * lagVelocity;
+    lagVelocity += acceleration * dt;
+    lagDistance = THREE.MathUtils.clamp(lagDistance + lagVelocity * dt, 0, BOAT.length * .72);
+    if ((lagDistance === 0 && lagVelocity < 0) || (lagDistance === BOAT.length * .72 && lagVelocity > 0)) lagVelocity = 0;
+  }
+
+  function resolvePose(dt, boatTransform, speedKnots, environment, enabled) {
+    const q = boatTransform.quaternion;
+    yawEuler.setFromQuaternion(q);
+    yawEuler.x = 0;
+    yawEuler.z = 0;
+    stableQuaternion.setFromEuler(yawEuler);
+    const config = CAMERA_MODES[mode];
+    localOffset.set(...config.offset).multiplyScalar(BOAT.length);
+    desiredPosition.copy(localOffset).applyQuaternion(stableQuaternion).add(boatTransform.position);
+    forward.set(0, 0, -1).applyQuaternion(stableQuaternion);
+    side.set(1, 0, 0).applyQuaternion(stableQuaternion);
+    updateLag(dt, speedKnots);
+    desiredPosition.addScaledVector(forward, -lagDistance);
+    const turnLag = THREE.MathUtils.clamp(boatTransform.angularHint || 0, -1, 1);
+    desiredPosition.addScaledVector(side, -turnLag * BOAT.beam * .34);
+    desiredTarget.copy(boatTransform.position)
+      .addScaledVector(forward, config.targetForward * BOAT.length);
+    desiredTarget.y += config.targetUp * BOAT.length;
+
+    if (enabled && !bookmark) {
+      const storm = environment.waveIntensity > 1.1 ? (environment.waveIntensity - 1.1) * .1 : 0;
+      shake = THREE.MathUtils.damp(shake, storm, 4, dt);
+      if (shake > .001) {
+        const t = environment.time * 17;
+        desiredPosition.x += Math.sin(t * 1.7) * shake;
+        desiredPosition.y += Math.sin(t * 2.3) * shake * .45;
+      }
+    }
+    lookMatrix.lookAt(desiredPosition, desiredTarget, WORLD_UP);
+    desiredQuaternion.setFromRotationMatrix(lookMatrix);
+    return config;
+  }
+
+  function update(dt, boatTransform, speedKnots, environment, enabled = true) {
+    dt = Math.min(dt, .05);
+    const config = resolvePose(dt, boatTransform, speedKnots, environment, enabled);
+
+    if (bookmark) {
+      if (!frozenPose) frozenPose = {
+        position: desiredPosition.clone(), quaternion: desiredQuaternion.clone(), fov: config.fov,
+        target: desiredTarget.clone()
+      };
+      camera.position.copy(frozenPose.position);
+      camera.quaternion.copy(frozenPose.quaternion);
+      camera.fov = frozenPose.fov;
+      camera.userData.target = frozenPose.target.clone();
+      camera.updateProjectionMatrix();
+      return;
+    }
+
+    if (transition) {
+      transition.elapsed += dt;
+      const t = THREE.MathUtils.clamp(transition.elapsed / transition.duration, 0, 1);
+      const eased = 1 - Math.pow(1 - t, 1.8);
+      camera.position.lerpVectors(transition.startPosition, desiredPosition, eased);
+      camera.quaternion.slerpQuaternions(transition.startQuaternion, desiredQuaternion, eased);
+      camera.fov = THREE.MathUtils.lerp(transition.startFov, config.fov, eased);
+      camera.userData.target = desiredTarget.clone();
+      camera.updateProjectionMatrix();
+      if (t >= 1) transition = null;
+      return;
+    }
+
+    const response = 1 - Math.exp(-config.response * dt);
+    camera.position.lerp(desiredPosition, response);
+    camera.quaternion.slerp(desiredQuaternion, response);
+    const speedFov = mode === 0 ? Math.min(speedKnots, 12) * .16 : 0;
+    camera.fov = THREE.MathUtils.damp(camera.fov, config.fov + speedFov, 4, dt);
+    camera.userData.target = desiredTarget.clone();
+    camera.updateProjectionMatrix();
+  }
+
+  return {
+    update, setMode, setBookmark, addImpact,
+    get mode() { return mode; },
+    get diagnostics() {
+      const config = CAMERA_MODES[mode];
+      return {
+        owner: 'follow-camera', mode: config.name, bookmark, subjectLength: BOAT.length,
+        offsetInBoatLengths: config.offset, lagDistance, lagVelocity,
+        transition: transition ? { t: transition.elapsed / transition.duration, duration: transition.duration } : null,
+        projection: { fov: camera.fov, near: camera.near, far: camera.far }
+      };
+    }
+  };
 }

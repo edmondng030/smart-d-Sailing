@@ -1,0 +1,43 @@
+{
+  "id": "spectral-sailing-v1",
+  "subject": "4.35 metre sailboat on an open directional sea",
+  "identity": [
+    "The boat remains the clear subject at design distance.",
+    "Long swell, wind waves and capillary detail read as distinct wavelength bands.",
+    "Whitecaps are sparse, broken and attached to persistent compression regions.",
+    "Water reads as a dielectric interface over an absorbing body, not transparent blue plastic."
+  ],
+  "cameraEnvelope": {
+    "near": "deck",
+    "design": "chase",
+    "far": "cinematic"
+  },
+  "lightingEnvelope": [
+    "clear afternoon",
+    "cloudy",
+    "sunset",
+    "fog",
+    "night"
+  ],
+  "invariants": [
+    "The CPU Gerstner sampler remains the sole owner of buoyancy and boat-water contact.",
+    "The spectral ocean uses a deterministic seed of 481516.",
+    "No ocean mesh edge is visible at the horizon.",
+    "No shader program reports a runnable failure.",
+    "Camera transitions have one interpolation owner."
+  ],
+  "performanceBudget": {
+    "designViewport": [
+      1280,
+      720
+    ],
+    "highQualityGpuFrameMs": 33.3,
+    "pendingTimerQueriesMaximum": 4
+  },
+  "allowedDivergences": [
+    "The project keeps a WebGL2 fragment-IFFT backend instead of requiring WebGPU and TSL.",
+    "Open-ocean transmission uses an analytic fallback depth because the app has no scene-depth or scene-colour prepass.",
+    "Foreground screen refraction is intentionally absent until a stable scene-colour ownership path exists.",
+    "Low and medium modes retain all three simulated cascades while material weights reduce fine detail."
+  ]
+}

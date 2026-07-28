@@ -11,13 +11,17 @@ import { createWorldSystem } from './src/systems/world.js';
 import { createWakeSystem } from './src/systems/effects.js';
 import { createDebugPanel } from './src/systems/debug.js';
 import { createAudioSystem } from './src/systems/audio.js';
+import { createVisualValidation } from './src/systems/visual-validation.js';
 
 await RAPIER.init({});
 
 const $=(selector,parent=document)=>parent.querySelector(selector);
 const $$=(selector,parent=document)=>[...parent.querySelectorAll(selector)];
 const clamp=THREE.MathUtils.clamp;
-const appState={mode:'menu',weather:'clear',hour:14.5,quality:chooseInitialQuality(),speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
+const launchParams=new URLSearchParams(location.search);
+const requestedQuality=launchParams.get('quality');
+const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:chooseInitialQuality();
+const appState={mode:'menu',weather:'clear',hour:14.5,quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
 
 const scene=new THREE.Scene();
 const camera=createCamera();
@@ -32,6 +36,7 @@ const wake=createWakeSystem(scene,ocean,appState.quality);
 const followCamera=createFollowCamera(camera);
 const audio=createAudioSystem();
 const debug=createDebugPanel(scene,boatRoot,boatPhysics,ocean,environment);
+const visualValidation=createVisualValidation({renderer,camera,ocean,followCamera});
 applyQuality(appState.quality,environment.sunLight);
 
 const overlay=$('#overlay'),toast=$('#toast');
@@ -92,17 +97,18 @@ function updateHud(physics){
 }
 
 function animate(){
-  requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),elapsed=clock.elapsedTime;
+  requestAnimationFrame(animate);visualValidation.beginFrame();const dt=Math.min(clock.getDelta(),.05),elapsed=clock.elapsedTime,simulationTime=visualValidation.simulationTime(elapsed);
   const rudder=(appState.keys.has('a')?1:0)-(appState.keys.has('d')?1:0);if(appState.keys.has('w'))appState.sailTrim=clamp(appState.sailTrim+dt*.45,.2,1);if(appState.keys.has('s'))appState.sailTrim=clamp(appState.sailTrim-dt*.45,.2,1);
-  const env=environment.update(dt,elapsed,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,elapsed,env,boatRoot.position);
-  const physics=boatPhysics.update(dt,elapsed,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
-  boatRoot.userData.lod.update(camera);worldSystem.update(dt,elapsed,env);wake.update(dt,elapsed,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update();
+  const env=environment.update(dt,simulationTime,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,simulationTime,env,boatRoot.position);
+  const physics=boatPhysics.update(dt,simulationTime,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
+  boatRoot.userData.lod.update(camera);worldSystem.update(dt,simulationTime,env);wake.update(dt,simulationTime,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update(simulationTime);
   if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
   else{menuCameraPosition.set(10+Math.sin(elapsed*.08)*2.5,5.8,11).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position).add(new THREE.Vector3(0,1.7,0));camera.lookAt(menuCameraTarget)}
   renderer.render(scene,camera);
+  visualValidation.endFrame();visualValidation.publish(elapsed);
   if(import.meta.env.DEV&&!diagnosticsPublished&&elapsed>1){
     const failedPrograms=renderer.info.programs.filter(program=>program.diagnostics&&program.diagnostics.runnable===false);
-    document.documentElement.dataset.spectralOcean=JSON.stringify(ocean.spectral.diagnostics);
+    document.documentElement.dataset.spectralOcean=JSON.stringify(ocean.diagnostics);
     document.documentElement.dataset.shaderFailures=String(failedPrograms.length);
     document.documentElement.dataset.webgl2=String(renderer.capabilities.isWebGL2);
     diagnosticsPublished=true;
@@ -111,4 +117,4 @@ function animate(){
   updateHud(physics);
 }
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY_PRESETS[appState.quality].pixelRatio));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const host=$('.boat-preview');previewRenderer.setSize(host.clientWidth,host.clientHeight,false);previewCamera.aspect=host.clientWidth/host.clientHeight;previewCamera.updateProjectionMatrix()}});
-applyBoatStyle();if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;environment.setPreset('clear');environment.setTime(14.5);document.body.classList.add('three-ready');animate();
+applyBoatStyle();if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;environment.setPreset('clear');environment.setTime(14.5);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();

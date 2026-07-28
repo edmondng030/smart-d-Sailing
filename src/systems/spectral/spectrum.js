@@ -126,7 +126,11 @@ function directionalSpread(theta, omega, parameters) {
       Math.tanh(Math.min(ratio, 20)) *
       parameters.swell *
       parameters.swell;
-  const broad = (2 / Math.PI) * Math.cos(theta) ** 2;
+  const delta = theta - parameters.angle;
+  const isotropic = 1 / TAU;
+  const forward = Math.max(Math.cos(delta), 0);
+  const windSpread = (2 / Math.PI) * forward * forward;
+  const broad = THREE.MathUtils.lerp(isotropic, windSpread, .55);
   const directed =
     normalizationFactor(power) *
     Math.pow(
