@@ -23,6 +23,7 @@
     "The CPU Gerstner sampler remains the sole owner of buoyancy and boat-water contact.",
     "The spectral ocean uses a deterministic seed of 481516.",
     "No ocean mesh edge is visible at the horizon.",
+    "No regular parallel comb or moire bands appear in chase or oblique cinematic views.",
     "No shader program reports a runnable failure.",
     "Camera transitions have one interpolation owner."
   ],
