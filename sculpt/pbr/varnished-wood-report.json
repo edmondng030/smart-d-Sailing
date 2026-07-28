@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "verdict": "pass",
+  "confidence": 0.86,
+  "estimatedFidelity": 0.86,
+  "targetThreshold": 0.7,
+  "materialId": "varnished-wood",
+  "sourceImage": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\detail-zones\\zone-r0c2.png",
+  "outDir": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood",
+  "palette": [
+    "#E8E9EB",
+    "#6E4F35",
+    "#35281C",
+    "#927D67",
+    "#C3B8A8"
+  ],
+  "maps": {
+    "albedo": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood\\varnished-wood_albedo.png",
+      "url": "varnished-wood_albedo.png",
+      "channel": "albedo",
+      "source": "reference-pixel-extraction"
+    },
+    "roughness": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood\\varnished-wood_roughness.png",
+      "url": "varnished-wood_roughness.png",
+      "channel": "roughness",
+      "source": "reference-pixel-extraction"
+    },
+    "height": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood\\varnished-wood_height.png",
+      "url": "varnished-wood_height.png",
+      "channel": "height",
+      "source": "reference-pixel-extraction"
+    },
+    "normal": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood\\varnished-wood_normal.png",
+      "url": "varnished-wood_normal.png",
+      "channel": "normal",
+      "source": "reference-pixel-extraction"
+    },
+    "ao": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\varnished-wood\\varnished-wood_ao.png",
+      "url": "varnished-wood_ao.png",
+      "channel": "ao",
+      "source": "reference-pixel-extraction"
+    }
+  },
+  "diagnostics": {
+    "sourceWidth": 467,
+    "sourceHeight": 374,
+    "mapSize": 1024,
+    "cropBBoxPixels": {
+      "x": 13,
+      "y": 42,
+      "width": 435,
+      "height": 332
+    },
+    "mask": {
+      "backgroundColor": "#FEFEFE",
+      "backgroundNoise": 1.414,
+      "transparentPixelFraction": 0.0,
+      "foregroundCoverage": 0.5322
+    },
+    "mapStats": {
+      "valueRange": 0.7936,
+      "heightP90Gradient": 0.0791,
+      "roughnessBase": 0.716,
+      "roughnessVariation": 0.149,
+      "normalStrength": 0.249,
+      "blurRadius": 21
+    },
+    "palette": [
+      "#E8E9EB",
+      "#6E4F35",
+      "#35281C",
+      "#927D67",
+      "#C3B8A8"
+    ]
+  },
+  "warnings": [
+    "single-image inverse rendering cannot prove true physical PBR; confidence is capped"
+  ],
+  "limitation": "single-image PBR extraction is an estimate; 70%+ extraction confidence still needs render screenshot review"
+}

@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "verdict": "pass",
+  "confidence": 0.86,
+  "estimatedFidelity": 0.86,
+  "targetThreshold": 0.7,
+  "materialId": "marine-paint",
+  "sourceImage": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\detail-zones\\zone-r1c1.png",
+  "outDir": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint",
+  "palette": [
+    "#3C3431",
+    "#D7D0C6",
+    "#71563F",
+    "#181615",
+    "#A3988A"
+  ],
+  "maps": {
+    "albedo": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint\\marine-paint_albedo.png",
+      "url": "marine-paint_albedo.png",
+      "channel": "albedo",
+      "source": "reference-pixel-extraction"
+    },
+    "roughness": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint\\marine-paint_roughness.png",
+      "url": "marine-paint_roughness.png",
+      "channel": "roughness",
+      "source": "reference-pixel-extraction"
+    },
+    "height": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint\\marine-paint_height.png",
+      "url": "marine-paint_height.png",
+      "channel": "height",
+      "source": "reference-pixel-extraction"
+    },
+    "normal": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint\\marine-paint_normal.png",
+      "url": "marine-paint_normal.png",
+      "channel": "normal",
+      "source": "reference-pixel-extraction"
+    },
+    "ao": {
+      "path": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\pbr\\marine-paint\\marine-paint_ao.png",
+      "url": "marine-paint_ao.png",
+      "channel": "ao",
+      "source": "reference-pixel-extraction"
+    }
+  },
+  "diagnostics": {
+    "sourceWidth": 467,
+    "sourceHeight": 374,
+    "mapSize": 1024,
+    "cropBBoxPixels": {
+      "x": 0,
+      "y": 0,
+      "width": 467,
+      "height": 374
+    },
+    "mask": {
+      "backgroundColor": "#FAFAF9",
+      "backgroundNoise": 11.358,
+      "transparentPixelFraction": 0.0,
+      "foregroundCoverage": 0.4584
+    },
+    "mapStats": {
+      "valueRange": 0.817,
+      "heightP90Gradient": 0.06201,
+      "roughnessBase": 0.701,
+      "roughnessVariation": 0.126,
+      "normalStrength": 0.229,
+      "blurRadius": 21
+    },
+    "palette": [
+      "#3C3431",
+      "#D7D0C6",
+      "#71563F",
+      "#181615",
+      "#A3988A"
+    ]
+  },
+  "warnings": [
+    "single-image inverse rendering cannot prove true physical PBR; confidence is capped"
+  ],
+  "limitation": "single-image PBR extraction is an estimate; 70%+ extraction confidence still needs render screenshot review"
+}

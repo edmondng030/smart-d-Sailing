@@ -1,0 +1,597 @@
+{
+  "targetName": "Classic Wooden Sailboat",
+  "sourceImage": "D:\\Users\\ewhng\\Documents\\3D Sailing\\3D boat.png",
+  "preSpecAssessment": {
+    "objectClass": {
+      "primaryType": "classic wooden gaff-rigged sailboat",
+      "primaryDomain": "object",
+      "formLanguage": [
+        "continuous lofted hull",
+        "assembled hard-surface deck fittings",
+        "fabric-like conforming sails",
+        "fiber-strand rope rigging"
+      ],
+      "structureKind": [
+        "compound object",
+        "layered shell",
+        "articulated assembly",
+        "repeated modules"
+      ],
+      "motionPotential": [
+        "whole-object physics transform",
+        "hinged rudder",
+        "rotating helm",
+        "deformable sails",
+        "detachable deck fittings"
+      ],
+      "materialFamilies": [
+        "varnished wood",
+        "weathered marine paint",
+        "canvas cloth",
+        "natural rope",
+        "brushed and blackened metal",
+        "glass"
+      ],
+      "notes": "Observed from front, side, top, and detail close-ups. Bilaterally symmetric hull with asymmetric deck fittings. Intended as a playable real-time browser vessel, not a manufacturing-grade naval-architecture mesh."
+    },
+    "complexity": {
+      "tier": "complex",
+      "scores": {
+        "silhouetteComplexity": 2,
+        "componentCount": 3,
+        "hierarchyDepth": 3,
+        "repetitionDensity": 2,
+        "materialLayerCount": 3,
+        "localDetailDensity": 3,
+        "occlusionRisk": 2,
+        "actionReadinessNeed": 3
+      },
+      "estimatedCounts": {
+        "macroComponents": 7,
+        "mesoComponents": 22,
+        "microFeatureGroups": 15,
+        "materialLayers": 7,
+        "repetitionSystems": 6
+      },
+      "reasoning": [
+        "The lofted hull, sheer line, keel, deck opening, and rail profile control the silhouette from three orthographic views.",
+        "Identity depends on separate mast, boom, two sails, standing/running rigging, cabin, helm, lamps, life ring, fenders, cleats, and anchor fittings.",
+        "Close-ups expose wood joinery, rope lay, canvas seams, painted-plank seams, metal wear, glass emission, and edge weathering.",
+        "Gameplay requires named pivots, sockets, collider intent, and compatibility with the existing Rapier rigid-body root."
+      ]
+    },
+    "specDepthDecision": {
+      "requiredDepth": "complex",
+      "minimumComponentLevels": [
+        "macro",
+        "meso",
+        "micro"
+      ],
+      "needsRepetitionSystems": true,
+      "needsMaterialLocalOverrides": true,
+      "needsMultipleReviewViews": true,
+      "needsActionReadyHierarchy": true,
+      "rationale": "Choose simple/moderate/complex/ultra-complex from observed structure, not from a hardcoded domain."
+    },
+    "unknownsToResolveBeforeImplementation": [
+      "The underwater keel cross-section and hull underside are inferred from the side/front silhouettes; confidence 0.70.",
+      "Port-side fittings not visible in the side close-up are mirrored only where the top view supports symmetry; confidence 0.78.",
+      "Below-deck interior and cabin interior are hidden and will remain unmodeled except for dark cavity backing.",
+      "Exact historical rig classification and rope routing are approximated to the visible two-sail arrangement rather than claimed as naval-architecture accuracy."
+    ],
+    "detailInventory": {
+      "scanMethod": "component-zones",
+      "targetMinDetails": 15,
+      "note": "Enumerate every identity-defining small detail before authoring the spec. Each detail must map to a component.localFeatures entry or material.localOverrides entry, never prose only. Use forge/stage1_intake/build_detail_inventory.py to scan zones.",
+      "details": [
+        {
+          "id": "hull-plank-seams",
+          "kind": "seam",
+          "description": "Horizontal plank seams across the white and blue painted hull bands",
+          "region": {
+            "component": "hull-side"
+          },
+          "scale": "meso",
+          "affects": "geometry+AO",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "hull-shell.plank-seams"
+          },
+          "evidenceRef": "reference:side-view+hull-texture",
+          "confidence": 0.96
+        },
+        {
+          "id": "paint-edge-wear",
+          "kind": "chip",
+          "description": "Irregular blue and white paint loss exposing warmer wood along plank edges and bow/stern",
+          "region": {
+            "component": "hull-shell"
+          },
+          "scale": "micro",
+          "affects": "albedo+roughness",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "marine-paint.edge-wear"
+          },
+          "evidenceRef": "reference:side-view+hull-texture",
+          "confidence": 0.92
+        },
+        {
+          "id": "waterline-band",
+          "kind": "linework",
+          "description": "Thin red-brown anti-fouling separator between white topside and blue lower hull",
+          "region": {
+            "component": "hull-shell"
+          },
+          "scale": "meso",
+          "affects": "albedo",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "marine-paint.waterline-band"
+          },
+          "evidenceRef": "reference:front+side-view",
+          "confidence": 0.98
+        },
+        {
+          "id": "gunwale-rub-rail",
+          "kind": "ridge",
+          "description": "Raised varnished wood rail following the full sheer line",
+          "region": {
+            "component": "gunwale"
+          },
+          "scale": "meso",
+          "affects": "geometry+gloss",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "gunwale.raised-rub-rail"
+          },
+          "evidenceRef": "reference:front+side+top-view",
+          "confidence": 0.98
+        },
+        {
+          "id": "deck-plank-joinery",
+          "kind": "seam",
+          "description": "Longitudinal deck planks with darker caulk gaps and cross joints",
+          "region": {
+            "component": "deck"
+          },
+          "scale": "meso",
+          "affects": "geometry+AO+roughness",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "deck.plank-joinery"
+          },
+          "evidenceRef": "reference:top-view",
+          "confidence": 0.97
+        },
+        {
+          "id": "wood-grain-wear",
+          "kind": "scratch",
+          "description": "Directional timber grain with lighter worn edges on deck, cabin, mast, boom, and helm",
+          "region": {
+            "component": "wood-components"
+          },
+          "scale": "micro",
+          "affects": "albedo+normal+roughness",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "varnished-wood.directional-grain"
+          },
+          "evidenceRef": "reference:top-view+detail-closeups",
+          "confidence": 0.94
+        },
+        {
+          "id": "sail-panel-seams",
+          "kind": "stitch",
+          "description": "Curved horizontal sail panel seams and reinforced perimeter hems",
+          "region": {
+            "component": "main-sail+jib"
+          },
+          "scale": "meso",
+          "affects": "geometry+albedo+roughness",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "sail-system.panel-seams"
+          },
+          "evidenceRef": "reference:front+side-view",
+          "confidence": 0.95
+        },
+        {
+          "id": "sail-stains",
+          "kind": "stain",
+          "description": "Warm grey weathering concentrated along sail seams, corners, and lower edges",
+          "region": {
+            "component": "main-sail+jib"
+          },
+          "scale": "micro",
+          "affects": "albedo+roughness",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "canvas-sail.seam-weathering"
+          },
+          "evidenceRef": "reference:front+side-view",
+          "confidence": 0.88
+        },
+        {
+          "id": "rope-lay",
+          "kind": "ridge",
+          "description": "Helical strand relief on standing rigging, coiled lines, and bollard wraps",
+          "region": {
+            "component": "rigging"
+          },
+          "scale": "micro",
+          "affects": "normal+geometry",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "rigging-system.helical-rope-lay"
+          },
+          "evidenceRef": "reference:detail-bollard+top-view",
+          "confidence": 0.91
+        },
+        {
+          "id": "helm-spokes",
+          "kind": "fastener",
+          "description": "Eight radial wooden wheel spokes with central metal hub and hand-worn rim",
+          "region": {
+            "component": "helm"
+          },
+          "scale": "meso",
+          "affects": "geometry+roughness",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "helm.eight-spoke-array"
+          },
+          "evidenceRef": "reference:helm-closeup",
+          "confidence": 0.99
+        },
+        {
+          "id": "life-ring-straps",
+          "kind": "stitch",
+          "description": "Alternating off-white and red-orange life-ring quadrants with four rope retainers",
+          "region": {
+            "component": "life-ring"
+          },
+          "scale": "meso",
+          "affects": "geometry+albedo",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "life-ring.retainer-array"
+          },
+          "evidenceRef": "reference:life-ring-closeup",
+          "confidence": 0.99
+        },
+        {
+          "id": "lamp-glow",
+          "kind": "emissive",
+          "description": "Warm amber lantern bulb inside blackened metal frame and clear glass enclosure",
+          "region": {
+            "component": "navigation-lamps"
+          },
+          "scale": "micro",
+          "affects": "emissive+transmission",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "lantern-glass.warm-emission"
+          },
+          "evidenceRef": "reference:lamp-closeup",
+          "confidence": 0.99
+        },
+        {
+          "id": "cabin-portholes",
+          "kind": "hole",
+          "description": "Two circular dark glass portholes with raised brass/wood rims on cabin side",
+          "region": {
+            "component": "cabin"
+          },
+          "scale": "meso",
+          "affects": "geometry+glass",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "cabin.twin-portholes"
+          },
+          "evidenceRef": "reference:side-view",
+          "confidence": 0.98
+        },
+        {
+          "id": "cleat-bolts",
+          "kind": "fastener",
+          "description": "Paired cleats and bollards with raised metal bases, rope wraps, and attachment bolts",
+          "region": {
+            "component": "deck-hardware"
+          },
+          "scale": "micro",
+          "affects": "geometry+metalness",
+          "mapsTo": {
+            "type": "component.localFeatures",
+            "ref": "deck-hardware.fastener-array"
+          },
+          "evidenceRef": "reference:cleat+bollard-closeups",
+          "confidence": 0.96
+        },
+        {
+          "id": "anchor-flag-mark",
+          "kind": "decal",
+          "description": "White anchor emblem on the blue forked masthead flag",
+          "region": {
+            "component": "masthead-flag"
+          },
+          "scale": "meso",
+          "affects": "albedo",
+          "mapsTo": {
+            "type": "material.localOverrides",
+            "ref": "flag-cloth.anchor-decal"
+          },
+          "evidenceRef": "reference:flag-closeup",
+          "confidence": 0.99
+        }
+      ]
+    },
+    "anatomy": {
+      "applies": false,
+      "styleHeads": 0,
+      "proportions": {
+        "headUnit": 0,
+        "torso": 0,
+        "legs": 0,
+        "shoulderWidth": 0,
+        "hipWidth": 0
+      },
+      "pose": {
+        "type": "unassessed",
+        "jointAngles": {}
+      },
+      "faceLandmarks": {
+        "eyeLine": 0,
+        "eyeSpacing": 0,
+        "noseBase": 0,
+        "mouthLine": 0,
+        "hairline": 0
+      },
+      "features": [],
+      "confidence": 0,
+      "note": "Only meaningful when objectClass.primaryDomain is character or hybrid. Set applies=true and fill from forge/stage1_intake/extract_landmarks.py. See grimoire/character/reconstruction.md and grimoire/character/likeness_maximization.md."
+    },
+    "sourceImage": "D:\\Users\\ewhng\\Documents\\3D Sailing\\3D boat.png"
+  },
+  "qualityContract": {
+    "qualityBar": "complex",
+    "definitionOfDone": [
+      "At 4.35 m length and 1.58 m beam, front/side/top renders preserve the reference hull sheer, rounded beam, pointed bow, transom taper, waterline, and mast-to-hull proportions.",
+      "The model includes separate action-ready hull, keel, deck, cabin, mast/boom, main sail, jib, rigging, helm/rudder, lamp, life-ring, fender, cleat, bollard, anchor, and masthead flag assemblies.",
+      "Neutral and grazing renders distinguish varnished timber, weathered blue/white marine paint, aged canvas, laid rope, metal hardware, and emissive/transmissive lantern glass without reusing PBR channels.",
+      "All visible appendages overlap or embed at named sockets; the visual root remains compatible with the existing Rapier BoatRoot transform and LOD system.",
+      "A front, starboard side, top, three-quarter bow, and three-quarter stern review shows no flat-card hull, floating fittings, collapsed sails, or missing identity systems."
+    ],
+    "minimumSpecDepth": {
+      "macroComponents": 7,
+      "mesoComponents": 18,
+      "microFeatureGroups": 12,
+      "materialLayers": 7,
+      "repetitionSystems": 5,
+      "reviewViewpoints": 5
+    },
+    "featureGroups": [
+      {
+        "id": "hull-silhouette",
+        "name": "Lofted hull, keel, sheer and painted bands",
+        "required": true,
+        "qualityCriteria": [
+          "Hull is a closed continuous loft, not a box stack or flat extrusion.",
+          "Side length:beam proportion is 4.35:1.58; bow is fine and elevated, stern is rounded/tapered.",
+          "White topside, red-brown waterline, and deep blue lower planks follow the reference."
+        ],
+        "evidenceRefs": [
+          "reference:front-view",
+          "reference:side-view",
+          "reference:top-view"
+        ],
+        "failureModes": [
+          "generic canoe silhouette",
+          "constant-width slab cross-section",
+          "paint bands ignore hull curvature"
+        ]
+      },
+      {
+        "id": "sail-rig-system",
+        "name": "Mast, boom, two sails and rigging",
+        "required": true,
+        "qualityCriteria": [
+          "Mast height and sail triangle proportions match the dimensioned views.",
+          "Main sail and jib have thickness, camber, panel seams, hems, and credible root attachments.",
+          "Standing and running rigging visibly connect masthead, boom, bow, stern, and gunwale sockets."
+        ],
+        "evidenceRefs": [
+          "reference:front-view",
+          "reference:side-view",
+          "reference:flag-closeup"
+        ],
+        "failureModes": [
+          "flat triangular cards",
+          "floating ropes",
+          "single generic sail replacing the two-sail silhouette"
+        ]
+      },
+      {
+        "id": "deck-cabin-system",
+        "name": "Planked deck, gunwale and twin-porthole cabin",
+        "required": true,
+        "qualityCriteria": [
+          "Top-view footprint includes the open cockpit, central cabin/companionway, longitudinal plank layout, and curved rails.",
+          "Cabin carries two circular portholes and a raised hatch with visible bevels."
+        ],
+        "evidenceRefs": [
+          "reference:top-view",
+          "reference:side-view"
+        ],
+        "failureModes": [
+          "solid filled deck",
+          "box cabin without portholes",
+          "rails disconnected from hull sheer"
+        ]
+      },
+      {
+        "id": "nautical-fittings",
+        "name": "Helm, rudder, lamps, life ring and hardware",
+        "required": true,
+        "qualityCriteria": [
+          "Eight-spoke helm, stern rudder, framed amber lamps, quadrant life ring, cleats, bollard, fenders, and anchor are separately named and clickable.",
+          "Repeated fittings use shared geometry/material systems with reference-supported placement."
+        ],
+        "evidenceRefs": [
+          "reference:detail-closeups",
+          "reference:top-view",
+          "reference:side-view"
+        ],
+        "failureModes": [
+          "decorative details fused into hull",
+          "incorrect wheel spoke count",
+          "missing life ring or lamps"
+        ]
+      },
+      {
+        "id": "weathered-material-stack",
+        "name": "Independent marine PBR material response",
+        "required": true,
+        "qualityCriteria": [
+          "Wood grain direction follows component axes with separate roughness and height signals.",
+          "Paint edge wear exposes warm timber; sail stains follow seams; rope relief reads at grazing light.",
+          "Metal, canvas, paint, wood, rope, and glass remain distinct under neutral relighting."
+        ],
+        "evidenceRefs": [
+          "reference:texture-atlas",
+          "reference:material-balls",
+          "reference:detail-closeups"
+        ],
+        "failureModes": [
+          "flat plastic appearance",
+          "albedo reused as roughness or bump",
+          "uniform pristine surfaces"
+        ]
+      },
+      {
+        "id": "attachment-runtime",
+        "name": "Action-ready attachments and physics compatibility",
+        "required": true,
+        "qualityCriteria": [
+          "Every mast, boom, sail, rope, helm, rudder, lamp, life ring, cleat, and fender has a parent socket and overlap.",
+          "BoatRoot remains the single physics-driven transform; movable helm and rudder have semantic pivots.",
+          "sculptRuntime exposes nodes, sockets, collider intent, destruction groups, and clickable named meshes."
+        ],
+        "evidenceRefs": [
+          "reference:all-views",
+          "existing:BoatRoot"
+        ],
+        "failureModes": [
+          "visual parts use world coordinates and drift from physics root",
+          "floating appendages",
+          "one fused decorative mesh"
+        ]
+      }
+    ],
+    "visualDeltaChecks": [
+      "front/side/top hull silhouette and 4.35:1.58 proportion delta",
+      "mast height, main-sail/jib area, boom length, and rigging negative-space delta",
+      "deck opening, cabin, helm, porthole, life-ring, lamp, cleat, fender, and anchor placement delta",
+      "blue/white/red-brown paint band coverage and timber/canvas/rope/metal/glass response delta",
+      "three-quarter cross-section volume and attachment gap delta",
+      "named-part coverage, pivot, socket, collider, and physics-root compatibility delta"
+    ],
+    "antiShallowSpecRules": [
+      "Do not proceed to code if qualityContract.qualityBar is unassessed.",
+      "Do not proceed to code if the spec only contains a root component for a moderate or complex object.",
+      "Do not proceed to code if required featureGroups are not represented by componentTree, materials, or repetitionSystems.",
+      "Do not proceed to code if visible local features are described only in prose and not attached to components/materials/evidenceRefs.",
+      "Do not proceed past structural-pass if attached child parts lack attachment.parentSocket, localStart, localEnd, embedDepth/overlap, and gapTolerance.",
+      "Do not pass material look-dev when albedo is reused as roughness, height, normal, or AO.",
+      "Do not pass material look-dev without macro, meso, and micro surface frequency bands for close-up materials.",
+      "Do not pass reference-fidelity material look-dev from a source image without usable referencePbr maps or an explicit documented limitation.",
+      "Do not patch a spec with extracted PBR maps when extraction confidence is below the target threshold unless the user explicitly accepts lower fidelity.",
+      "Do not place adjacent separate-geometry parts below 0.02 world-unit seam overlap (source: grimoire/build/geometry_patterns.md).",
+      "Do not satisfy raised or recessed relief, fasteners, or grip structure with a map alone when the feature affects form; use geometry or displacement (source: grimoire/build/geometry_patterns.md)."
+    ]
+  },
+  "authoringInstruction": "Fill observed object class, complexity reasoning, featureGroups, visualDeltaChecks, and unknowns before generating or implementing ObjectSculptSpec.",
+  "localSpecSearch": {
+    "collection": "core_3d",
+    "query": "Classic Wooden Sailboat wooden sailboat lofted hull deck cabin mast boom canvas sails rigging weathered marine paint wood grain rope metal glass PBR browser realtime",
+    "index": {
+      "status": "rebuilt",
+      "reason": "missing",
+      "fingerprint": "ac4f0bc9028e34083dbb5d5531ae3df7699c8e7641d5f8e6d42e7492ea1be1d0"
+    },
+    "matches": [
+      {
+        "record_id": "core.shader-mapping-tsl-node-functions-for-weathering",
+        "file_path": "docs/raw/img2threejs-skill-dataset.json",
+        "heading": null,
+        "key_path": "categories.rendering_shader_mapping[2]",
+        "score": 6.366510077157,
+        "snippets": [
+          "Three.js Shading Language (WebGPU) node-graph functions used to build procedural PBR materials, especially for blending pristine vs. weathered states. C獺c h?m ?廙?th廙?n繳t c廙吧 Three.js Shading Language (WebGPU) d羅ng ?廙?x璽y d廙彫g v廕負 li廙 PBR th廙?..."
+        ],
+        "source_refs": [
+          {
+            "path": "docs/raw/img2threejs-skill-dataset.json",
+            "heading": null,
+            "key_path": "categories.rendering_shader_mapping[2]"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "docs/raw/img2threejs-skill-dataset.json",
+            "note": "img2threejs NotebookLM research distillation"
+          }
+        ]
+      },
+      {
+        "record_id": "core.pbr-anisotropy",
+        "file_path": "docs/raw/img2threejs-skill-dataset.json",
+        "heading": null,
+        "key_path": "categories.material_pbr[6]",
+        "score": 6.205333939439,
+        "snippets": [
+          "Directional specular stretching seen on brushed or grooved metal, where reflections elongate along the grain direction. Hi廙 t廙τg ph廕τ x廕?specular k矇o d?i theo m廙 h廙g, th廕句 tr礙n kim lo廕【 ?廙θ ch廕ξ x廙 ho廕搾 c籀 r瓊nh, ph廕τ x廕?k矇o d?i theo ..."
+        ],
+        "source_refs": [
+          {
+            "path": "docs/raw/img2threejs-skill-dataset.json",
+            "heading": null,
+            "key_path": "categories.material_pbr[6]"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "docs/raw/img2threejs-skill-dataset.json",
+            "note": "img2threejs NotebookLM research distillation"
+          }
+        ]
+      },
+      {
+        "record_id": "core.shader-mapping-lathegeometry-turnedradially-symmetric-parts",
+        "file_path": "docs/raw/img2threejs-skill-dataset.json",
+        "heading": null,
+        "key_path": "categories.rendering_shader_mapping[9]",
+        "score": 5.720422033842,
+        "snippets": [
+          "... ra b廕彫g c獺ch xoay m廙 bi礙n d廕》g 2D quanh m廙 tr廙卉. Recognition cues: Contoured, fully radially-symmetric part ??turned wood/metal handle, some muzzle device shapes, adjustment knobs D廕只 hi廙 nh廕要 di廙: B廙?ph廕要 c籀 bi礙n d廕》g, ?廙 x廙姊g tr廙卉 ..."
+        ],
+        "source_refs": [
+          {
+            "path": "docs/raw/img2threejs-skill-dataset.json",
+            "heading": null,
+            "key_path": "categories.rendering_shader_mapping[9]"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "kind": "source",
+            "ref": "docs/raw/img2threejs-skill-dataset.json",
+            "note": "img2threejs NotebookLM research distillation"
+          }
+        ]
+      }
+    ]
+  }
+}
