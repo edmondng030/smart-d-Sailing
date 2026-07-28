@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BASE_WAVES, QUALITY_PRESETS } from '../config.js';
+import { createSpectralLayer } from './spectral/index.js';
 
 const MAX_WAVES = 6;
 const TAU = Math.PI * 2;
@@ -11,7 +12,28 @@ function normalisedDirection([x, y]) {
   return [x / length, y / length];
 }
 
-export function createOceanSystem(scene, qualityName = 'high') {
+function createAdaptiveOceanGeometry(size, segments) {
+  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+  const positions = geometry.attributes.position;
+  const half = size * .5;
+  const nearScale = 96;
+  for (let index = 0; index < positions.count; index += 1) {
+    const normalizedX = positions.getX(index) / half;
+    const normalizedY = positions.getY(index) / half;
+    const remap = value => {
+      const magnitude = Math.abs(value);
+      return Math.sign(value) * (nearScale * magnitude + (half - nearScale) * magnitude ** 3);
+    };
+    positions.setXY(index, remap(normalizedX), remap(normalizedY));
+  }
+  positions.needsUpdate = true;
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+export function createOceanSystem(scene, renderer, qualityName = 'high') {
+  const spectral = createSpectralLayer(renderer, qualityName);
+  const initialCascades = spectral.cascades;
   const waves = BASE_WAVES.map(wave => { const direction=normalisedDirection(wave.direction); return { ...wave, direction, baseDirection:[...direction], baseSpeed:wave.speed, currentAmplitude:wave.amplitude, targetAmplitude:wave.amplitude }; });
   const waveUniforms = Array.from({ length: MAX_WAVES }, () => new THREE.Vector4());
   const speedUniforms = new Float32Array(MAX_WAVES);
@@ -24,6 +46,16 @@ export function createOceanSystem(scene, qualityName = 'high') {
     uSky: { value: new THREE.Color('#8fc6df') },
     uSunColour: { value: new THREE.Color('#fff2d2') }, uSunDirection: { value: new THREE.Vector3(-.35, .72, .6).normalize() },
     uWindDirection: { value: new THREE.Vector2(1, .25).normalize() },
+    uSpectralDisplacement0: { value: initialCascades[0].displacement },
+    uSpectralDisplacement1: { value: initialCascades[1].displacement },
+    uSpectralDisplacement2: { value: initialCascades[2].displacement },
+    uSpectralDerivatives0: { value: initialCascades[0].derivatives.texture },
+    uSpectralDerivatives1: { value: initialCascades[1].derivatives.texture },
+    uSpectralDerivatives2: { value: initialCascades[2].derivatives.texture },
+    uSpectralDetail: { value: spectral.detailTexture },
+    uSpectralPatchLengths: { value: new THREE.Vector3(250, 17, 5) },
+    uSpectralGeometryStrength: { value: .065 }, uSpectralNormalStrength: { value: .86 }, uSpectralActive: { value: spectral.active ? 1 : 0 },
+    uSpectralFoamThreshold: { value: .4 }, uSpectralFoamScale: { value: 2.5 },
     uFoamThreshold: { value: .48 }, uWaveEnergy: { value: 1 }, uDetailLevel: { value: 1 }
   };
 
@@ -33,30 +65,60 @@ export function createOceanSystem(scene, qualityName = 'high') {
       #define MAX_WAVES 6
       uniform float uTime; uniform int uWaveCount; uniform vec4 uWaves[MAX_WAVES];
       uniform float uWaveSpeeds[MAX_WAVES]; uniform float uSteepness[MAX_WAVES];
-      varying vec3 vWorld; varying vec3 vNormalW; varying float vCrest; varying float vSlope; varying float vHeight;
+      uniform sampler2D uSpectralDisplacement0; uniform sampler2D uSpectralDisplacement1; uniform sampler2D uSpectralDisplacement2;
+      uniform vec3 uSpectralPatchLengths; uniform float uSpectralGeometryStrength;
+      varying vec3 vWorld; varying vec3 vNormalW; varying vec2 vOceanXZ;
+      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory;
       void main() {
         vec4 baseWorld = modelMatrix * vec4(position.x, 0.0, position.y, 1.0);
         vec2 worldXZ = baseWorld.xz; float height = 0.0; vec2 horizontal = vec2(0.0); vec2 gradient = vec2(0.0); float crest = 0.0;
+        float vertexFootprint =
+          distance(cameraPosition.xz, worldXZ) * distance(cameraPosition.xz, worldXZ) * .001 /
+          max(abs(cameraPosition.y - baseWorld.y), .5);
         for (int i = 0; i < MAX_WAVES; i++) {
           if (i >= uWaveCount) break;
           vec4 wave = uWaves[i]; float k = 6.28318530718 / wave.w;
+          float waveKeep = 1.0 - smoothstep(wave.w * .12, wave.w * .45, vertexFootprint);
           float phase = k * dot(wave.xy, worldXZ) - uWaveSpeeds[i] * uTime;
           float sn = sin(phase); float cs = cos(phase);
-          height += wave.z * sn; horizontal += wave.xy * (uSteepness[i] * wave.z * cs);
-          gradient += wave.xy * (wave.z * k * cs);
-          crest += smoothstep(0.55, 0.98, sn) * min(wave.z * k, 0.15);
+          height += wave.z * sn * waveKeep;
+          horizontal += wave.xy * (uSteepness[i] * wave.z * cs) * waveKeep;
+          gradient += wave.xy * (wave.z * k * cs) * waveKeep;
+          crest += smoothstep(0.55, 0.98, sn) * min(wave.z * k, 0.15) * waveKeep;
         }
+        vec4 spectral0 = texture2D(uSpectralDisplacement0, fract(worldXZ / uSpectralPatchLengths.x));
+        vec4 spectral1 = texture2D(uSpectralDisplacement1, fract(worldXZ / uSpectralPatchLengths.y));
+        vec4 spectral2 = texture2D(uSpectralDisplacement2, fract(worldXZ / uSpectralPatchLengths.z));
+        float spectralKeep0 = 1.0 - smoothstep(2.5, 5.5, vertexFootprint);
+        float spectralKeep1 = 1.0 - smoothstep(.35, 1.2, vertexFootprint);
+        float spectralKeep2 = 1.0 - smoothstep(.1, .4, vertexFootprint);
+        vec3 spectralDisplacement =
+          spectral0.xyz * spectralKeep0 +
+          spectral1.xyz * .55 * spectralKeep1 +
+          spectral2.xyz * .28 * spectralKeep2;
+        horizontal += spectralDisplacement.xz * uSpectralGeometryStrength;
+        height += spectralDisplacement.y * uSpectralGeometryStrength;
         vec3 p = position; p.x += horizontal.x; p.y += horizontal.y; p.z = height;
-        vec4 world = modelMatrix * vec4(p, 1.0); vWorld = world.xyz;
+        vec4 world = modelMatrix * vec4(p, 1.0); vWorld = world.xyz; vOceanXZ = worldXZ;
+        vSpectralHistory = min(
+          mix(1.0, spectral0.a, spectralKeep0),
+          mix(1.0, spectral1.a, spectralKeep1)
+        );
         vNormalW = normalize(normalMatrix * vec3(-gradient.x, -gradient.y, 1.0));
         vCrest = crest; vSlope = length(gradient); vHeight = height;
         gl_Position = projectionMatrix * viewMatrix * world;
       }`,
     fragmentShader: `
+      #define MAX_WAVES 6
       uniform vec3 uDeep; uniform vec3 uMid; uniform vec3 uShallow; uniform vec3 uHorizon;
       uniform vec3 uSky; uniform vec3 uSunColour; uniform vec3 uSunDirection; uniform vec2 uWindDirection;
       uniform float uTime; uniform float uFoamThreshold; uniform float uWaveEnergy; uniform float uDetailLevel;
-      varying vec3 vWorld; varying vec3 vNormalW; varying float vCrest; varying float vSlope; varying float vHeight;
+      uniform int uWaveCount; uniform vec4 uWaves[MAX_WAVES]; uniform float uWaveSpeeds[MAX_WAVES];
+      uniform sampler2D uSpectralDerivatives0; uniform sampler2D uSpectralDerivatives1; uniform sampler2D uSpectralDerivatives2;
+      uniform sampler2D uSpectralDetail; uniform vec3 uSpectralPatchLengths;
+      uniform float uSpectralNormalStrength; uniform float uSpectralActive; uniform float uSpectralFoamThreshold; uniform float uSpectralFoamScale;
+      varying vec3 vWorld; varying vec3 vNormalW; varying vec2 vOceanXZ;
+      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory;
 
       float hash21(vec2 p) {
         p = fract(p * vec2(123.34, 456.21));
@@ -97,35 +159,86 @@ export function createOceanSystem(scene, qualityName = 'high') {
       }
 
       void main() {
-        vec2 micro = microSlope(vWorld.xz, uTime);
-        vec3 normal = normalize(vec3(vNormalW.x - micro.x, vNormalW.y, vNormalW.z - micro.y));
+        float pixelFootprint =
+          distance(cameraPosition.xz, vWorld.xz) * distance(cameraPosition.xz, vWorld.xz) * .001 /
+          max(abs(cameraPosition.y - vWorld.y), .5);
+        float fragmentHeight = 0.0;
+        float fragmentCrest = 0.0;
+        vec2 fragmentGradient = vec2(0.0);
+        for (int i = 0; i < MAX_WAVES; i++) {
+          if (i >= uWaveCount) break;
+          vec4 wave = uWaves[i];
+          float k = 6.28318530718 / wave.w;
+          float waveKeep = 1.0 - smoothstep(wave.w * .12, wave.w * .45, pixelFootprint);
+          float phase = k * dot(wave.xy, vOceanXZ) - uWaveSpeeds[i] * uTime;
+          float sn = sin(phase); float cs = cos(phase);
+          fragmentHeight += wave.z * sn * waveKeep;
+          fragmentGradient += wave.xy * (wave.z * k * cs) * waveKeep;
+          fragmentCrest += smoothstep(.55, .98, sn) * min(wave.z * k, .15) * waveKeep;
+        }
+        float analyticVisualStrength = mix(1.0, .16, uSpectralActive);
+        fragmentGradient *= analyticVisualStrength;
+        fragmentHeight *= mix(1.0, .35, uSpectralActive);
+        fragmentCrest *= analyticVisualStrength;
+        float fragmentSlope = length(fragmentGradient);
+        float spectralKeep0 = 1.0 - smoothstep(2.5, 5.5, pixelFootprint);
+        float spectralKeep1 = 1.0 - smoothstep(.35, 1.2, pixelFootprint);
+        float spectralKeep2 = 1.0 - smoothstep(.1, .4, pixelFootprint);
+        vec4 derivative =
+          texture2D(uSpectralDerivatives0, fract(vOceanXZ / uSpectralPatchLengths.x)) * spectralKeep0 +
+          texture2D(uSpectralDerivatives1, fract(vOceanXZ / uSpectralPatchLengths.y)) * .55 * spectralKeep1 +
+          texture2D(uSpectralDerivatives2, fract(vOceanXZ / uSpectralPatchLengths.z)) * .28 * spectralKeep2;
+        vec2 spectralSlope = vec2(
+          derivative.x / max(.18, 1.0 + derivative.z),
+          derivative.y / max(.18, 1.0 + derivative.w)
+        );
+        float detailKeepA = 1.0 - smoothstep(.025, .12, pixelFootprint);
+        float detailKeepB = 1.0 - smoothstep(.008, .035, pixelFootprint);
+        vec2 detailA = (texture2D(uSpectralDetail, vOceanXZ * .06 + vec2(uTime * .012, uTime * .008)).rg * 2.0 - 1.0) * detailKeepA;
+        vec2 detailB = (texture2D(uSpectralDetail, vOceanXZ * .17 + vec2(-uTime * .02, uTime * .015)).rg * 2.0 - 1.0) * detailKeepB;
+        vec2 micro = microSlope(vWorld.xz, uTime) * detailKeepA * mix(1.0, .14, uSpectralActive) +
+          (detailA * .12 + detailB * .05) * uDetailLevel * uSpectralActive;
+        vec3 baseNormal = normalize(vec3(-fragmentGradient.x, 1.0, fragmentGradient.y));
+        vec3 normal = normalize(vec3(
+          baseNormal.x - micro.x - spectralSlope.x * uSpectralNormalStrength,
+          baseNormal.y,
+          baseNormal.z - micro.y - spectralSlope.y * uSpectralNormalStrength
+        ));
         vec3 viewDir = normalize(cameraPosition - vWorld);
         float facing = max(dot(viewDir, normal), 0.0);
         float fresnel = .02 + .98 * pow(1.0 - facing, 5.0);
         float downView = clamp(viewDir.y, 0.0, 1.0);
         float distanceFog = smoothstep(250.0, 2100.0, distance(cameraPosition.xz, vWorld.xz));
 
-        float horizonView = pow(1.0 - downView, .58);
-        vec3 skyReflection = mix(uSky * .62, uHorizon, horizonView);
-        float bodyDepth = clamp(downView * .82 + vSlope * .18 - vHeight * .045, 0.0, 1.0);
+        vec3 reflectedSky = reflect(-viewDir, normal);
+        float horizonView = pow(1.0 - clamp(reflectedSky.y, 0.0, 1.0), .58);
+        float sunMirror = max(dot(reflectedSky, normalize(uSunDirection)), 0.0);
+        vec3 skyReflection = mix(uSky * .68, uHorizon, horizonView);
+        skyReflection = mix(mix(uMid, uHorizon, .38), skyReflection, .46);
+        skyReflection += uSunColour * (pow(sunMirror, 96.0) * .18 + pow(sunMirror, 680.0) * .75);
+        float bodyDepth = clamp(downView * .82 + fragmentSlope * .18 - fragmentHeight * .045, 0.0, 1.0);
         vec3 bodyColour = mix(uMid, uDeep, bodyDepth);
-        float crestLight = smoothstep(.08, .38, vCrest + max(vHeight, 0.0) * .035);
+        float crestLight = smoothstep(.08, .38, fragmentCrest + max(fragmentHeight, 0.0) * .035);
         bodyColour = mix(bodyColour, uShallow, crestLight * .34 + (1.0 - downView) * .08);
-        vec3 water = mix(bodyColour, skyReflection, fresnel * .88);
+        float reflectionWeight = clamp(.1 + fresnel * .34, .1, .44);
+        vec3 water = mix(bodyColour, skyReflection, reflectionWeight);
 
         vec3 reflected = reflect(-normalize(uSunDirection), normal);
         float reflectionDot = max(dot(reflected, viewDir), 0.0);
         float sparkleNoise = fbm(vWorld.xz * 2.8 + uWindDirection * uTime * .55);
         float broadGlitter = pow(reflectionDot, 42.0) * (.28 + sparkleNoise * .72);
         float sharpGlitter = pow(reflectionDot, 280.0) * step(.56, sparkleNoise);
-        water += uSunColour * (broadGlitter * .62 + sharpGlitter * 2.4) * (1.0 - distanceFog);
+        water += uSunColour * (broadGlitter * .24 + sharpGlitter * 1.55) * (1.0 - distanceFog);
 
         float foamNoise = fbm(vWorld.xz * .82 + uWindDirection * uTime * .08);
         float fineFoam = fbm(vWorld.xz * 2.35 - uWindDirection * uTime * .12);
-        float crestSignal = vCrest * (1.05 + foamNoise * .55) + vSlope * .065 * uWaveEnergy;
+        float crestSignal = fragmentCrest * (1.05 + foamNoise * .55) + fragmentSlope * .065 * uWaveEnergy;
         float foamBase = smoothstep(uFoamThreshold - .06, uFoamThreshold + .08, crestSignal);
         float brokenEdge = smoothstep(.34, .72, foamNoise + fineFoam * .32);
         float foam = foamBase * mix(.42, 1.0, brokenEdge);
+        float spectralFoamRaw = clamp((uSpectralFoamThreshold - vSpectralHistory) * uSpectralFoamScale, 0.0, 1.0);
+        float spectralFoam = smoothstep(.2, .9, spectralFoamRaw) * mix(.62, 1.0, fineFoam);
+        foam = max(foam, spectralFoam);
         vec3 foamColour = mix(uHorizon, vec3(0.94, 0.985, 1.0), .62);
         water = mix(water, foamColour, foam * .78);
 
@@ -146,8 +259,20 @@ export function createOceanSystem(scene, qualityName = 'high') {
     const preset = QUALITY_PRESETS[name] || QUALITY_PRESETS.high;
     uniforms.uWaveCount.value = preset.waveCount;
     uniforms.uDetailLevel.value = ({ low:.38, medium:.68, high:1, ultra:1.18 })[name] || 1;
+    uniforms.uSpectralGeometryStrength.value = ({ low:.025, medium:.045, high:.065, ultra:.08 })[name] || .065;
+    uniforms.uSpectralNormalStrength.value = ({ low:.5, medium:.72, high:.86, ultra:1 })[name] || .86;
+    spectral.setQuality(name);
+    const cascades = spectral.cascades;
+    uniforms.uSpectralDisplacement0.value = cascades[0].displacement;
+    uniforms.uSpectralDisplacement1.value = cascades[1].displacement;
+    uniforms.uSpectralDisplacement2.value = cascades[2].displacement;
+    uniforms.uSpectralDerivatives0.value = cascades[0].derivatives.texture;
+    uniforms.uSpectralDerivatives1.value = cascades[1].derivatives.texture;
+    uniforms.uSpectralDerivatives2.value = cascades[2].derivatives.texture;
+    uniforms.uSpectralActive.value = spectral.active ? 1 : 0;
+    uniforms.uSpectralDetail.value = spectral.detailTexture;
     geometry?.dispose();
-    geometry = new THREE.PlaneGeometry(5000, 5000, preset.oceanSegments, preset.oceanSegments);
+    geometry = createAdaptiveOceanGeometry(5000, preset.oceanSegments);
     mesh.geometry = geometry;
   }
 
@@ -156,6 +281,15 @@ export function createOceanSystem(scene, qualityName = 'high') {
   }
 
   function update(dt, time, environment, focusPosition) {
+    spectral.update(time, dt, environment.waveIntensity);
+    const cascades = spectral.cascades;
+    uniforms.uSpectralDisplacement0.value = cascades[0].displacement;
+    uniforms.uSpectralDisplacement1.value = cascades[1].displacement;
+    uniforms.uSpectralDisplacement2.value = cascades[2].displacement;
+    uniforms.uSpectralDerivatives0.value = cascades[0].derivatives.texture;
+    uniforms.uSpectralDerivatives1.value = cascades[1].derivatives.texture;
+    uniforms.uSpectralDerivatives2.value = cascades[2].derivatives.texture;
+    uniforms.uSpectralActive.value = spectral.active ? 1 : 0;
     uniforms.uTime.value = time; mesh.position.x = Math.round(focusPosition.x / 100) * 100; mesh.position.z = Math.round(focusPosition.z / 100) * 100;
     waves.forEach((wave, index) => {
       wave.currentAmplitude = THREE.MathUtils.damp(wave.currentAmplitude, wave.targetAmplitude, .65, dt);
@@ -190,5 +324,5 @@ export function createOceanSystem(scene, qualityName = 'high') {
   }
 
   setQuality(qualityName);
-  return { mesh, material, uniforms, waves, update, sampleOceanSurface, setWaveIntensity, setQuality, dispose() { geometry.dispose(); material.dispose(); scene.remove(mesh); } };
+  return { mesh, material, uniforms, waves, spectral, update, sampleOceanSurface, setWaveIntensity, setQuality, dispose() { geometry.dispose(); material.dispose(); spectral.dispose(); scene.remove(mesh); } };
 }
