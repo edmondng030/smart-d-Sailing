@@ -1,112 +1,106 @@
 import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { chooseInitialQuality, QUALITY_PRESETS } from './src/config.js';
+import { createRenderer, createCamera } from './src/core/renderer.js';
+import { createOceanSystem } from './src/systems/ocean.js';
+import { createEnvironmentSystem } from './src/systems/environment.js';
+import { createBoatVisual, createBoatPhysics } from './src/systems/boat.js';
+import { createFollowCamera } from './src/systems/camera.js';
+import { createWorldSystem } from './src/systems/world.js';
+import { createWakeSystem } from './src/systems/effects.js';
+import { createDebugPanel } from './src/systems/debug.js';
+import { createAudioSystem } from './src/systems/audio.js';
 
-const $ = (s, p = document) => p.querySelector(s);
-const $$ = (s, p = document) => [...p.querySelectorAll(s)];
-const clamp = THREE.MathUtils.clamp;
-const state = { mode:'menu',weather:'clear',hour:14.5,wind:3,speed:6.2,targetSpeed:2.8,heading:45,anchored:false,camera:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set() };
+await RAPIER.init({});
 
-const canvas=$('#world');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
-const scene=new THREE.Scene();scene.background=new THREE.Color('#8dbbd0');scene.fog=new THREE.FogExp2('#9cc7d2',.014);
-const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,500);camera.position.set(12,7,14);
-const hemi=new THREE.HemisphereLight('#dff5ff','#123a42',2.1);scene.add(hemi);
-const sunLight=new THREE.DirectionalLight('#fff1cd',4);sunLight.position.set(-18,24,-28);sunLight.castShadow=true;sunLight.shadow.mapSize.set(2048,2048);sunLight.shadow.camera.left=-24;sunLight.shadow.camera.right=24;sunLight.shadow.camera.top=24;sunLight.shadow.camera.bottom=-24;scene.add(sunLight);
-const sunDisc=new THREE.Mesh(new THREE.SphereGeometry(2.1,24,16),new THREE.MeshBasicMaterial({color:'#fff2bd'}));sunDisc.position.set(-38,24,-70);scene.add(sunDisc);
+const $=(selector,parent=document)=>parent.querySelector(selector);
+const $$=(selector,parent=document)=>[...parent.querySelectorAll(selector)];
+const clamp=THREE.MathUtils.clamp;
+const appState={mode:'menu',weather:'clear',hour:14.5,quality:chooseInitialQuality(),speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
 
-const waterGeo=new THREE.PlaneGeometry(240,240,176,176);
-function makeCanvasTexture(kind){
-  const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
-  if(kind==='wood'){x.fillStyle='#8b5435';x.fillRect(0,0,512,512);for(let i=0;i<90;i++){const y=i*6+(i%3)*2;x.strokeStyle=`rgba(${45+i%35},24,12,${.08+i%5*.015})`;x.lineWidth=1+(i%4===0);x.beginPath();x.moveTo(0,y);for(let u=0;u<=512;u+=24)x.lineTo(u,y+Math.sin(u*.028+i)*4);x.stroke()}for(let i=0;i<18;i++){x.strokeStyle='#4a2b1d28';x.strokeRect(i*37%500,0,2,512)}}
-  if(kind==='deck'){x.fillStyle='#c29868';x.fillRect(0,0,512,512);for(let i=0;i<18;i++){x.fillStyle=i%2?'#5b382329':'#f6d6a01c';x.fillRect(i*30,0,3,512)}for(let y=0;y<512;y+=80){x.fillStyle='#42271924';x.fillRect(0,y,512,2)}}
-  if(kind==='sail'){const g=x.createLinearGradient(0,0,512,512);g.addColorStop(0,'#fffaf0');g.addColorStop(.58,'#e8ddc9');g.addColorStop(1,'#b8aa92');x.fillStyle=g;x.fillRect(0,0,512,512);for(let y=38;y<512;y+=54){x.strokeStyle='#826f5845';x.lineWidth=2;x.beginPath();x.moveTo(0,y);x.lineTo(512,y+6);x.stroke()}for(let i=0;i<7000;i++){const v=205+Math.random()*45;x.fillStyle=`rgba(${v},${v-6},${v-18},.08)`;x.fillRect(Math.random()*512,Math.random()*512,1,1)}}
-  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.anisotropy=renderer.capabilities.getMaxAnisotropy();return tex
-}
-const woodTexture=makeCanvasTexture('wood'),deckTexture=makeCanvasTexture('deck'),sailTexture=makeCanvasTexture('sail');
-const waterMat=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uDeep:{value:new THREE.Color('#063149')},uShallow:{value:new THREE.Color('#167692')},uSun:{value:new THREE.Color('#ffdda0')},uStrength:{value:.42},uSunDir:{value:new THREE.Vector3(-.35,.72,.6).normalize()}},vertexShader:`
-uniform float uTime;uniform float uStrength;varying float vWave;varying vec3 vWorld;varying vec3 vNormalW;
-void main(){vec3 p=position;float t=uTime;float a=sin(p.x*.22+t*1.22)*uStrength;float b=sin(p.y*.17-t*.91)*uStrength*.82;float c=sin((p.x+p.y)*.48+t*1.65)*uStrength*.24;float d=sin(length(p.xy)*.31-t*1.1)*uStrength*.16;p.z=a+b+c+d;float dx=cos(p.x*.22+t*1.22)*.22*uStrength+cos((p.x+p.y)*.48+t*1.65)*.48*uStrength*.24;float dy=cos(p.y*.17-t*.91)*.17*uStrength*.82+cos((p.x+p.y)*.48+t*1.65)*.48*uStrength*.24;vNormalW=normalize(normalMatrix*vec3(-dx,-dy,1.));vec4 world=modelMatrix*vec4(p,1.);vWorld=world.xyz;vWave=p.z;gl_Position=projectionMatrix*viewMatrix*world;}`,fragmentShader:`
-uniform vec3 uDeep;uniform vec3 uShallow;uniform vec3 uSun;uniform vec3 uSunDir;uniform float uTime;varying float vWave;varying vec3 vWorld;varying vec3 vNormalW;
-void main(){vec3 n=normalize(vNormalW);vec3 viewDir=normalize(cameraPosition-vWorld);float fres=pow(1.-max(dot(viewDir,n),0.),2.25);vec3 reflected=reflect(-uSunDir,n);float spec=pow(max(dot(reflected,viewDir),0.),96.)*1.4;float small=sin(vWorld.x*2.1+uTime*2.4)*sin(vWorld.z*1.7-uTime*1.8);float crest=smoothstep(.28,.56,vWave+small*.055);float horizon=pow(1.-max(dot(viewDir,n),0.),4.);vec3 col=mix(uDeep,uShallow,.34+vWave*.55);col=mix(col,vec3(.34,.68,.78),fres*.42);col+=uSun*(spec+crest*.32+horizon*.08);gl_FragColor=vec4(col,1.);}`,side:THREE.DoubleSide});
-const water=new THREE.Mesh(waterGeo,waterMat);water.rotation.x=-Math.PI/2;water.position.y=-.42;water.receiveShadow=true;scene.add(water);
-
-function hullGeometry(){const v=new Float32Array([-1.25,.28,-2.2,1.25,.28,-2.2,-.95,.34,1.55,.95,.34,1.55,-.48,-.72,-1.65,.48,-.72,-1.65,-.32,-.62,1.45,.32,-.62,1.45,0,.18,-2.75]);const ix=[0,1,4,1,5,4,0,4,2,2,4,6,1,3,5,3,7,5,2,6,3,3,6,7,4,5,6,5,7,6,0,2,1,1,2,3,0,8,1,0,4,8,1,8,5];const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(v,3));g.setIndex(ix);g.computeVertexNormals();return g}
-function addBoatDetails(g){
- const dark=new THREE.MeshStandardMaterial({color:'#2e211b',roughness:.43}),brass=new THREE.MeshStandardMaterial({color:'#bd8b3d',roughness:.26,metalness:.55}),rope=new THREE.MeshStandardMaterial({color:'#a98b64',roughness:1});
- const railMat=new THREE.MeshStandardMaterial({color:'#5a3928',roughness:.52});
- [-1,1].forEach(side=>{const pts=[new THREE.Vector3(side*1.02,.62,-1.9),new THREE.Vector3(side*1.04,.68,-.45),new THREE.Vector3(side*.82,.68,1.35)];const rail=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),20,.035,7,false),railMat);g.add(rail);for(let z=-1.65;z<1.4;z+=.72){const post=new THREE.Mesh(new THREE.CylinderGeometry(.022,.03,.55,7),railMat);post.position.set(side*(1.02-Math.max(z,0)*.13),.72,z);g.add(post)}});
- const wheel=new THREE.Group();const rim=new THREE.Mesh(new THREE.TorusGeometry(.38,.035,8,24),dark);rim.rotation.y=Math.PI/2;wheel.add(rim);for(let i=0;i<8;i++){const spoke=new THREE.Mesh(new THREE.CylinderGeometry(.012,.018,.75,6),dark);spoke.rotation.z=Math.PI/2;spoke.rotation.x=i*Math.PI/4;wheel.add(spoke)}wheel.position.set(.62,1.23,1.08);wheel.rotation.z=.25;g.add(wheel);
- const tiller=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,1.2,7),dark);tiller.rotation.x=Math.PI/2;tiller.rotation.z=.15;tiller.position.set(0,.95,1.26);g.add(tiller);
- const cockpit=new THREE.Mesh(new THREE.BoxGeometry(1.18,.18,.86),new THREE.MeshStandardMaterial({color:'#34241e',roughness:.72}));cockpit.position.set(0,.53,1.02);g.add(cockpit);
- [-.62,.62].forEach(x=>{const bench=new THREE.Mesh(new THREE.BoxGeometry(.28,.1,1.12),new THREE.MeshStandardMaterial({map:deckTexture,color:'#bd8a55',roughness:.65}));bench.position.set(x,.78,.82);g.add(bench)});
- for(let i=0;i<4;i++){const cleat=new THREE.Mesh(new THREE.CapsuleGeometry(.035,.18,3,6),brass);cleat.rotation.z=Math.PI/2;cleat.position.set(i<2?-.82:.82,.69,i%2?-1.25:.65);g.add(cleat)}
- const rudder=new THREE.Mesh(new THREE.BoxGeometry(.12,.82,.72),new THREE.MeshStandardMaterial({map:woodTexture,color:'#75442d',roughness:.6}));rudder.position.set(0,-.36,1.76);g.add(rudder);
- const lantern=new THREE.PointLight('#ffc66d',3.5,5);lantern.position.set(0,1.05,1.82);g.add(lantern);const lamp=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),new THREE.MeshBasicMaterial({color:'#ffca77'}));lamp.position.copy(lantern.position);g.add(lamp);
-}
-function createBoat(scale=1){const g=new THREE.Group();g.name='sailboat';const hull=new THREE.Mesh(hullGeometry(),new THREE.MeshStandardMaterial({map:woodTexture,color:state.hull,roughness:.38,metalness:.02}));hull.castShadow=true;hull.receiveShadow=true;hull.name='hull';g.add(hull);
-const stripe=new THREE.Mesh(new THREE.BoxGeometry(2.18,.12,3.55),new THREE.MeshStandardMaterial({color:'#e8ddc9',roughness:.62}));stripe.position.set(0,.22,-.2);g.add(stripe);
-const deck=new THREE.Mesh(new THREE.BoxGeometry(1.8,.13,3.05),new THREE.MeshStandardMaterial({map:deckTexture,color:'#c19362',roughness:.56}));deck.position.set(0,.42,-.03);deck.castShadow=true;g.add(deck);
-const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.05,.45,1.05),new THREE.MeshStandardMaterial({map:woodTexture,color:'#aa774d',roughness:.55}));cabin.position.set(0,.69,.42);cabin.castShadow=true;g.add(cabin);
-const windowMesh=new THREE.Mesh(new THREE.BoxGeometry(.74,.22,.04),new THREE.MeshPhysicalMaterial({color:'#0c2d3e',roughness:.08,metalness:.3,clearcoat:1}));windowMesh.position.set(0,.72,-.125);cabin.add(windowMesh);
-addBoatDetails(g);
-const mastMat=new THREE.MeshStandardMaterial({map:woodTexture,color:'#543723',roughness:.4});const mast=new THREE.Mesh(new THREE.CylinderGeometry(.055,.075,6.25,12),mastMat);mast.position.set(0,3.45,.18);mast.castShadow=true;g.add(mast);
-const boom=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,2.55,10),mastMat);boom.rotation.z=Math.PI/2;boom.position.set(1.18,1.23,.19);g.add(boom);
-const sailMat=new THREE.MeshPhysicalMaterial({map:sailTexture,bumpMap:sailTexture,bumpScale:.018,color:'#fff6df',side:THREE.DoubleSide,roughness:.74,transmission:.03,transparent:true,opacity:.98});const sailShape=new THREE.Shape();sailShape.moveTo(.12,.18);sailShape.lineTo(.12,4.82);sailShape.quadraticCurveTo(1.75,3.1,2.42,.3);sailShape.closePath();const main=new THREE.Mesh(new THREE.ShapeGeometry(sailShape,30),sailMat);main.position.set(.08,1.23,.2);main.castShadow=true;main.name='mainSail';g.add(main);
-const jibShape=new THREE.Shape();jibShape.moveTo(-.1,.18);jibShape.lineTo(-.1,3.7);jibShape.lineTo(-1.72,.2);jibShape.closePath();const jib=new THREE.Mesh(new THREE.ShapeGeometry(jibShape,18),sailMat.clone());jib.position.set(-.12,1.18,.18);jib.castShadow=true;jib.name='jibSail';g.add(jib);
-const ropeMat=new THREE.LineBasicMaterial({color:'#d7c19b',transparent:true,opacity:.86});[[new THREE.Vector3(0,6.58,.18),new THREE.Vector3(-1.2,.55,-1.55)],[new THREE.Vector3(0,6.58,.18),new THREE.Vector3(1.05,.46,1.25)],[new THREE.Vector3(0,6.58,.18),new THREE.Vector3(0,.55,1.72)]].forEach(points=>g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),ropeMat)));
-const flagShape=new THREE.Shape();flagShape.moveTo(0,0);flagShape.lineTo(-.85,-.18);flagShape.lineTo(0,-.4);flagShape.closePath();const flag=new THREE.Mesh(new THREE.ShapeGeometry(flagShape),new THREE.MeshBasicMaterial({color:'#e7b85d',side:THREE.DoubleSide}));flag.position.set(0,6.48,.18);g.add(flag);g.scale.setScalar(scale);return g}
-const boat=createBoat(1.18);boat.rotation.y=THREE.MathUtils.degToRad(state.heading);scene.add(boat);
-const wakeMat=new THREE.MeshBasicMaterial({color:'#e8fffa',transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});const wakeShape=new THREE.Shape();wakeShape.moveTo(-.12,0);wakeShape.bezierCurveTo(-.45,1.2,-2.7,4.2,-3.7,8);wakeShape.lineTo(-1.6,7.4);wakeShape.bezierCurveTo(-1.1,4,-.4,1.5,0,0);const wakeLeft=new THREE.Mesh(new THREE.ShapeGeometry(wakeShape,24),wakeMat);wakeLeft.rotation.x=-Math.PI/2;wakeLeft.position.set(0,-.34,1.7);scene.add(wakeLeft);const wakeRight=wakeLeft.clone();wakeRight.scale.x=-1;scene.add(wakeRight);
-const sprayCount=180,sprayPos=new Float32Array(sprayCount*3);for(let i=0;i<sprayCount;i++){const z=Math.random()*10+.8;sprayPos[i*3]=(Math.random()-.5)*(1+z*.55);sprayPos[i*3+1]=-.25+Math.random()*.18;sprayPos[i*3+2]=z}const sprayGeo=new THREE.BufferGeometry();sprayGeo.setAttribute('position',new THREE.BufferAttribute(sprayPos,3));const spray=new THREE.Points(sprayGeo,new THREE.PointsMaterial({color:'#eaffff',size:.09,transparent:true,opacity:.68,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));scene.add(spray);
-
-const islands=new THREE.Group();scene.add(islands);
-function addTree(group,x,z,s=1){const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.045*s,.075*s,.65*s,6),new THREE.MeshStandardMaterial({color:'#4f3b28',roughness:1}));trunk.position.set(x,.72*s,z);group.add(trunk);const crownMat=new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.29,.32,.23+Math.random()*.08),roughness:1});const crown=new THREE.Mesh(new THREE.DodecahedronGeometry(.34*s,1),crownMat);crown.scale.set(.85,1.35,.85);crown.position.set(x,1.18*s,z);crown.castShadow=true;group.add(crown)}
-function makeIsland(x,z,s=1,lighthouse=false){const group=new THREE.Group();const sand=new THREE.Mesh(new THREE.CylinderGeometry(2.7*s,3.7*s,.5,26),new THREE.MeshStandardMaterial({color:'#ceb984',roughness:1}));sand.position.y=-.24;group.add(sand);const rockMat=new THREE.MeshStandardMaterial({color:'#526958',roughness:.94});for(let i=0;i<10;i++){const r=(.55+Math.random()*1.15)*s,rock=new THREE.Mesh(new THREE.DodecahedronGeometry(r,2),rockMat);const a=i/10*Math.PI*2;rock.position.set(Math.cos(a)*1.65*s,.25+Math.random()*.65*s,Math.sin(a)*1.42*s);rock.scale.y=1.2+Math.random()*1.8;rock.rotation.y=Math.random()*Math.PI;rock.castShadow=true;group.add(rock)}for(let i=0;i<16;i++){const a=Math.random()*Math.PI*2,rad=(.35+Math.random()*1.65)*s;addTree(group,Math.cos(a)*rad,Math.sin(a)*rad,.72+Math.random()*.65)}if(lighthouse){const tower=new THREE.Mesh(new THREE.CylinderGeometry(.22,.4,2.8,16),new THREE.MeshStandardMaterial({color:'#eee6d7',roughness:.75}));tower.position.y=2.35;group.add(tower);const band=new THREE.Mesh(new THREE.CylinderGeometry(.405,.405,.4,16),new THREE.MeshStandardMaterial({color:'#b94c3f'}));band.position.y=2.25;group.add(band);const balcony=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.09,16),new THREE.MeshStandardMaterial({color:'#293c44',metalness:.35}));balcony.position.y=3.62;group.add(balcony);const top=new THREE.Mesh(new THREE.ConeGeometry(.5,.55,16),new THREE.MeshStandardMaterial({color:'#283b45'}));top.position.y=4;group.add(top);const lamp=new THREE.PointLight('#ffd98b',12,24);lamp.position.y=3.75;group.add(lamp)}group.position.set(x,0,z);islands.add(group)}
-makeIsland(-20,-34,2.5);makeIsland(18,-45,2.9,true);makeIsland(-38,-67,3.5);makeIsland(38,-77,2.6);
-function makeCloud(x,y,z,s){const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:.58,depthWrite:false});for(let i=0;i<6;i++){const q=new THREE.Mesh(new THREE.SphereGeometry(.8+Math.random()*.65,12,8),m);q.position.set(i*1.05+Math.random()*.3,Math.sin(i)*.3,Math.random());q.scale.y=.55;g.add(q)}g.position.set(x,y,z);g.scale.setScalar(s);scene.add(g);return g}
-const clouds=[makeCloud(-22,13,-45,2.4),makeCloud(18,16,-65,3),makeCloud(-8,20,-90,3.6)];
-
-function setSailStyle(kind,root=boat){const colors={classic:['#eee5d1','#e8deca'],navy:['#173b53','#254f67'],regatta:['#e5b45d','#f0e4cd']};const [a,b]=colors[kind]||colors.classic;root.getObjectByName('mainSail').material.color.set(a);root.getObjectByName('jibSail').material.color.set(b);state.sail=kind}
-function setHullColor(color,root=boat){root.getObjectByName('hull').material.color.set(color);state.hull=color}
-const weatherStyles={clear:{sky:'#8fbfd4',fog:'#abcdd4',deep:'#063d55',shallow:'#2c8fa3',sun:'#fff1c4',intensity:4,icon:'☀',name:'晴朗'},cloudy:{sky:'#839ea9',fog:'#9bafb3',deep:'#123e4e',shallow:'#4a7b83',sun:'#d9ddd4',intensity:2.2,icon:'☁',name:'多雲'},sunset:{sky:'#d98b6f',fog:'#d4a17e',deep:'#183f55',shallow:'#a35b55',sun:'#ffb55d',intensity:3.2,icon:'◐',name:'黃昏'},fog:{sky:'#aebfc0',fog:'#b9c7c6',deep:'#2f5962',shallow:'#75989a',sun:'#e3dbbd',intensity:1.7,icon:'≋',name:'霧氣'},night:{sky:'#07162c',fog:'#10263b',deep:'#031b31',shallow:'#0d4761',sun:'#c8ddff',intensity:.25,icon:'☾',name:'夜晚'}};
-function applyWeather(key){state.weather=key;const w=weatherStyles[key]||weatherStyles.clear;scene.background.set(w.sky);scene.fog.color.set(w.fog);scene.fog.density=key==='fog'?.034:.014;waterMat.uniforms.uDeep.value.set(w.deep);waterMat.uniforms.uShallow.value.set(w.shallow);waterMat.uniforms.uSun.value.set(w.sun);sunDisc.material.color.set(w.sun);sunLight.color.set(w.sun);sunLight.intensity=w.intensity;hemi.intensity=key==='night'?.55:2.1}
-function applyTime(hour){state.hour=hour;const t=(hour-6)/16,angle=Math.PI*(1-t);sunDisc.position.set(Math.cos(angle)*58,Math.max(3,Math.sin(angle)*34),-72);sunLight.position.copy(sunDisc.position).multiplyScalar(.55)}
+const scene=new THREE.Scene();
+const camera=createCamera();
+const {renderer,applyQuality}=createRenderer($('#world'),appState.quality);
+const environment=createEnvironmentSystem(scene,renderer);
+const ocean=createOceanSystem(scene,appState.quality);
+const worldSystem=createWorldSystem(scene);
+const boatRoot=createBoatVisual(renderer);scene.add(boatRoot);
+const physicsWorld=new RAPIER.World({x:0,y:-9.81,z:0});physicsWorld.timestep=1/60;
+const boatPhysics=createBoatPhysics(RAPIER,physicsWorld,boatRoot,ocean);
+const wake=createWakeSystem(scene,ocean,appState.quality);
+const followCamera=createFollowCamera(camera);
+const audio=createAudioSystem();
+const debug=createDebugPanel(scene,boatRoot,boatPhysics,ocean,environment);
+applyQuality(appState.quality,environment.sunLight);
 
 const overlay=$('#overlay'),toast=$('#toast');
-function openModal(id){$$('.modal').forEach(m=>m.classList.remove('open'));const m=$('#'+id);if(!m)return;overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');m.classList.add('open');if(id==='customize')requestAnimationFrame(initPreview)}
-function closeModal(){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');$$('.modal').forEach(m=>m.classList.remove('open'))}
-function showToast(text){toast.textContent=text;toast.classList.add('show');clearTimeout(showToast.t);showToast.t=setTimeout(()=>toast.classList.remove('show'),1800)}
-function showScreen(id){$$('.screen').forEach(x=>x.classList.remove('active'));$('#'+id).classList.add('active');state.mode=id}
-$$('[data-open]').forEach(b=>b.addEventListener('click',()=>openModal(b.dataset.open)));$$('[data-close]').forEach(b=>b.addEventListener('click',closeModal));overlay.addEventListener('pointerdown',e=>{if(e.target===overlay)closeModal()});
-const weatherCards=$$('.weather-card:not(.locked)');weatherCards.forEach((card,i)=>card.addEventListener('click',()=>{weatherCards.forEach(c=>c.classList.remove('selected'));card.classList.add('selected');applyWeather(['clear','cloudy','sunset','fog','night'][i])}));
-$('#timeRange')?.addEventListener('input',e=>{const v=+e.target.value,h=Math.floor(v),m=v%1?'30':'00';$('#timeLabel').textContent=`${String(h).padStart(2,'0')}:${m}`;applyTime(v);const sun=$('.time-sun');if(sun)sun.style.left=`${8+(v-6)/16*84}%`});
-$$('.segmented button').forEach((b,i)=>b.addEventListener('click',()=>{$$('.segmented button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');state.wind=[1.8,3,4.6][i];waterMat.uniforms.uStrength.value=.2+state.wind*.045}));
-$$('.tabs button').forEach(b=>b.addEventListener('click',()=>{$$('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.tab-content').forEach(x=>x.classList.add('hidden'));$('#'+b.dataset.tab)?.classList.remove('hidden')}));
-$$('.sail-options button').forEach((b,i)=>b.addEventListener('click',()=>{$$('.sail-options button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');setSailStyle(['classic','navy','regatta'][i]);if(previewBoat)setSailStyle(['classic','navy','regatta'][i],previewBoat);showToast('帆布已裝備')}));
-$$('.color-options button').forEach(b=>b.addEventListener('click',()=>{$$('.color-options button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');const c=getComputedStyle(b).getPropertyValue('--c').trim()||'#8f5539';setHullColor(c);if(previewBoat)setHullColor(c,previewBoat);showToast('船身顏色已更新')}));
-function handleAction(action,button){if(action==='start'){closeModal();showScreen('game');state.targetSpeed=6.2;showToast('航程開始 — 一路順風！')}if(action==='continue'){showScreen('game');state.targetSpeed=5.4;showToast('已載入上次航程')}if(action==='home'){showScreen('menu');state.targetSpeed=2.8}if(action==='anchor'){state.anchored=!state.anchored;state.targetSpeed=state.anchored?0:5.4;button.querySelector('span').textContent=state.anchored?'起錨':'下錨';showToast(state.anchored?'船隻已下錨':'重新揚帆')}if(action==='camera'){state.camera=(state.camera+1)%3;showToast(['跟隨視角','甲板視角','遠景視角'][state.camera])}}
-$$('[data-action]').forEach(b=>b.addEventListener('click',()=>handleAction(b.dataset.action,b)));
-function updateHud(){state.heading=(state.heading+360)%360;const dirs=['N','NE','E','SE','S','SW','W','NW'];const directionEl=$('#direction')||$('#heading');const degreeEl=$('#direction')?$('#heading'):$('.compass span');if(directionEl)directionEl.textContent=dirs[Math.round(state.heading/45)%8];if(degreeEl)degreeEl.textContent=String(Math.round(state.heading)).padStart(3,'0')+'°';const speedEl=$('#speed');if(speedEl)speedEl.textContent=state.speed.toFixed(1)}
-addEventListener('keydown',e=>{state.keys.add(e.key.toLowerCase());if(e.key==='Escape'){if(overlay.classList.contains('open'))closeModal();else if(state.mode==='game')handleAction('home')}if(state.mode!=='game')return;if(e.key.toLowerCase()==='m')openModal('map');if(e.code==='Space'){e.preventDefault();state.targetSpeed=clamp(state.targetSpeed+1,0,10);showToast('乘風加速！')}});
-addEventListener('keyup',e=>state.keys.delete(e.key.toLowerCase()));
+function openModal(id){$$('.modal').forEach(modal=>modal.classList.remove('open'));const modal=$('#'+id);if(!modal)return;overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');modal.classList.add('open');if(id==='customize')requestAnimationFrame(initPreview)}
+function closeModal(){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');$$('.modal').forEach(modal=>modal.classList.remove('open'))}
+function showToast(message){toast.textContent=message;toast.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove('show'),1800)}
+function showScreen(id){$$('.screen').forEach(screen=>screen.classList.remove('active'));$('#'+id).classList.add('active');appState.mode=id}
+function applyBoatStyle(root=boatRoot){const high=root.userData.high;if(!high)return;const sailColours={classic:['#fff6df','#eee3cc'],navy:['#173b53','#274f67'],regatta:['#e4ad52','#f3e7d1']}[appState.sail];high.userData.sail.material.color.set(sailColours[0]);high.userData.jib.material.color.set(sailColours[1]);high.userData.hullMaterial.color.set(appState.hull)}
+
+$$('[data-open]').forEach(button=>button.addEventListener('click',()=>openModal(button.dataset.open)));
+$$('[data-close]').forEach(button=>button.addEventListener('click',closeModal));
+overlay.addEventListener('pointerdown',event=>{if(event.target===overlay)closeModal()});
+
+const weatherNames=['clear','cloudy','sunset','fog','night'];
+$$('.weather-card:not(.locked)').forEach((card,index)=>card.addEventListener('click',()=>{$$('.weather-card').forEach(item=>item.classList.remove('selected'));card.classList.add('selected');appState.weather=weatherNames[index];environment.setPreset(appState.weather);showToast(card.querySelector('span').textContent+'環境載入中')}));
+$('#timeRange')?.addEventListener('input',event=>{const value=+event.target.value,hour=Math.floor(value),minutes=value%1?'30':'00';$('#timeLabel').textContent=`${String(hour).padStart(2,'0')}:${minutes}`;appState.hour=value;environment.setTime(value)});
+$$('.segmented button').forEach((button,index)=>button.addEventListener('click',()=>{$$('.segmented button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');environment.target.windSpeed=[3,6,10][index]}));
+$$('.tabs button').forEach(button=>button.addEventListener('click',()=>{$$('.tabs button').forEach(item=>item.classList.remove('active'));button.classList.add('active');$$('.tab-content').forEach(panel=>panel.classList.add('hidden'));$('#'+button.dataset.tab)?.classList.remove('hidden')}));
+$$('.sail-options button').forEach((button,index)=>button.addEventListener('click',()=>{$$('.sail-options button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');appState.sail=['classic','navy','regatta'][index];applyBoatStyle();if(previewBoat)applyBoatStyle(previewBoat);showToast('帆布已裝備')}));
+$$('.color-options button').forEach(button=>button.addEventListener('click',()=>{$$('.color-options button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');appState.hull=getComputedStyle(button).getPropertyValue('--c').trim()||'#8f5539';applyBoatStyle();if(previewBoat)applyBoatStyle(previewBoat);showToast('船身塗裝已更新')}));
+
+function setQuality(name){if(!QUALITY_PRESETS[name])return;appState.quality=name;applyQuality(name,environment.sunLight);ocean.setQuality(name);wake.setQuality(name);environment.setQuality(name);showToast(`畫面品質：${name.toUpperCase()}`)}
+$('#qualitySelect')?.addEventListener('change',event=>setQuality(event.target.value));
+$('#brightness')?.addEventListener('input',event=>{environment.target.exposure=+event.target.value/100});
+$('#motionToggle')?.addEventListener('change',event=>{appState.motion=event.target.checked});
+
+function handleAction(action,button){
+  if(action==='start'){closeModal();showScreen('game');audio.start();audio.resume();boatPhysics.setVelocity(-2.6);showToast('航程開始 — 一路順風！')}
+  if(action==='continue'){showScreen('game');audio.start();audio.resume();showToast('已載入上次航程')}
+  if(action==='home'){showScreen('menu')}
+  if(action==='anchor'){appState.anchored=!appState.anchored;button.querySelector('span').textContent=appState.anchored?'起錨':'下錨';showToast(appState.anchored?'船隻已下錨':'重新揚帆')}
+  if(action==='camera'){appState.camera=followCamera.setMode(appState.camera+1);showToast(['跟隨視角','甲板視角','遠景視角'][appState.camera])}
+}
+$$('[data-action]').forEach(button=>button.addEventListener('click',()=>handleAction(button.dataset.action,button)));
+
+addEventListener('keydown',event=>{appState.keys.add(event.key.toLowerCase());if(event.key==='Escape'){if(overlay.classList.contains('open'))closeModal();else if(appState.mode==='game')handleAction('home')}if(appState.mode==='game'&&event.key.toLowerCase()==='m')openModal('map')});
+addEventListener('keyup',event=>appState.keys.delete(event.key.toLowerCase()));
 
 let previewRenderer=null,previewScene=null,previewCamera=null,previewBoat=null,previewControls=null;
-function initPreview(){const host=$('.boat-preview');if(!host)return;host.querySelectorAll('.preview-water,.preview-boat').forEach(x=>x.style.display='none');let c=$('#threePreview');if(!c){c=document.createElement('canvas');c.id='threePreview';host.prepend(c)}if(previewRenderer){previewRenderer.setSize(host.clientWidth,host.clientHeight);return}previewRenderer=new THREE.WebGLRenderer({canvas:c,antialias:true,alpha:true});previewRenderer.setPixelRatio(Math.min(devicePixelRatio,1.5));previewRenderer.setSize(host.clientWidth,host.clientHeight);previewRenderer.shadowMap.enabled=true;previewScene=new THREE.Scene();previewScene.background=new THREE.Color('#6f9fb1');previewCamera=new THREE.PerspectiveCamera(42,host.clientWidth/host.clientHeight,.1,100);previewCamera.position.set(8,5,9);previewScene.add(new THREE.HemisphereLight('#fff','#143747',2.6));const dl=new THREE.DirectionalLight('#fff2d2',3);dl.position.set(-5,8,5);previewScene.add(dl);const sea=new THREE.Mesh(new THREE.CircleGeometry(20,64),new THREE.MeshStandardMaterial({color:'#246d80',roughness:.34}));sea.rotation.x=-Math.PI/2;sea.position.y=-.46;previewScene.add(sea);previewBoat=createBoat(.8);setSailStyle(state.sail,previewBoat);setHullColor(state.hull,previewBoat);previewScene.add(previewBoat);previewControls=new OrbitControls(previewCamera,c);previewControls.enablePan=false;previewControls.minDistance=7;previewControls.maxDistance=16;previewControls.target.set(0,2,0);previewControls.enableDamping=true}
-
-const target=new THREE.Vector3(),desired=new THREE.Vector3(),clock=new THREE.Clock();
-function animate(){
- requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;waterMat.uniforms.uTime.value=t;state.speed=THREE.MathUtils.damp(state.speed,state.targetSpeed,state.anchored?6:2.4,dt);
- if(state.mode==='game'){if(state.keys.has('a'))state.heading+=42*dt;if(state.keys.has('d'))state.heading-=42*dt;if(state.keys.has('w'))state.targetSpeed=clamp(state.targetSpeed+2*dt,0,10);if(state.keys.has('s'))state.targetSpeed=clamp(state.targetSpeed-2.4*dt,0,10)}
- const yaw=THREE.MathUtils.degToRad(state.heading);boat.rotation.y=THREE.MathUtils.damp(boat.rotation.y,yaw,3,dt);boat.position.y=Math.sin(t*1.25)*.115;boat.rotation.z=Math.sin(t*.9)*.029+(state.keys.has('a')?.042:state.keys.has('d')?-.042:0);boat.rotation.x=Math.sin(t*1.15)*.021;
- const mainSail=boat.getObjectByName('mainSail'),jibSail=boat.getObjectByName('jibSail');if(mainSail){mainSail.rotation.y=Math.sin(t*1.8)*.012;mainSail.rotation.z=Math.sin(t*1.15)*.004}if(jibSail)jibSail.rotation.y=Math.sin(t*1.65+.7)*.018;
- wakeLeft.material.opacity=wakeRight.material.opacity=state.anchored?0:.1+state.speed*.035;wakeLeft.scale.y=wakeRight.scale.y=.42+state.speed*.09;spray.material.opacity=state.anchored?0:.2+state.speed*.055;
- const pa=spray.geometry.attributes.position;for(let i=0;i<sprayCount;i++){pa.array[i*3+2]+=state.speed*dt*.72;pa.array[i*3+1]=-.28+Math.sin(t*3.2+i)*.055;if(pa.array[i*3+2]>12){const z=.7+Math.random()*1.8;pa.array[i*3+2]=z;pa.array[i*3]=(Math.random()-.5)*(1+z*.5)}}pa.needsUpdate=true;
- islands.position.z+=state.speed*dt*.18;if(islands.position.z>28)islands.position.z=-18;clouds.forEach((c,i)=>{c.position.x+=dt*(.15+i*.05);if(c.position.x>55)c.position.x=-55});
- if(state.mode==='menu'){desired.set(12+Math.sin(t*.08)*2,7,14);target.set(0,2.35,-.4)}
- else{const views=[[0,5.15,11.6],[.15,3.25,2.3],[11.5,7.2,14.5]][state.camera];desired.set(...views);target.set(0,state.camera===1?2.7:1.55,state.camera===1?-3.6:-4.25)}
- if(state.motion){desired.y+=Math.sin(t*.55)*.11;desired.x+=Math.sin(t*.28)*.14}camera.position.lerp(desired,1-Math.exp(-dt*2.25));camera.lookAt(target);renderer.render(scene,camera);
- if(previewRenderer&&$('#customize')?.classList.contains('open')){previewBoat.position.y=Math.sin(t*1.2)*.05;previewControls.update();previewRenderer.render(previewScene,previewCamera)}updateHud()
+function initPreview(){
+  const host=$('.boat-preview');if(!host)return;host.querySelectorAll('.preview-water,.preview-boat').forEach(element=>element.style.display='none');
+  let canvas=$('#threePreview');if(!canvas){canvas=document.createElement('canvas');canvas.id='threePreview';host.prepend(canvas)}
+  if(previewRenderer){previewRenderer.setSize(host.clientWidth,host.clientHeight,false);return}
+  previewRenderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});previewRenderer.outputColorSpace=THREE.SRGBColorSpace;previewRenderer.toneMapping=THREE.ACESFilmicToneMapping;previewRenderer.toneMappingExposure=.95;previewRenderer.shadowMap.enabled=true;previewRenderer.setPixelRatio(Math.min(devicePixelRatio,1.5));previewRenderer.setSize(host.clientWidth,host.clientHeight,false);
+  previewScene=new THREE.Scene();previewScene.background=new THREE.Color('#709eb0');previewScene.add(new THREE.HemisphereLight('#ffffff','#173849',2.1));const light=new THREE.DirectionalLight('#fff0cf',3);light.position.set(-5,9,6);light.castShadow=true;previewScene.add(light);
+  previewCamera=new THREE.PerspectiveCamera(42,host.clientWidth/host.clientHeight,.1,100);previewCamera.position.set(7,4.3,8);
+  const sea=new THREE.Mesh(new THREE.CircleGeometry(18,64),new THREE.MeshStandardMaterial({color:'#246d80',roughness:.32,metalness:.05}));sea.rotation.x=-Math.PI/2;sea.position.y=-.5;previewScene.add(sea);
+  previewBoat=createBoatVisual(previewRenderer);previewBoat.userData.lod.levels.slice(1).forEach(level=>level.object.visible=false);applyBoatStyle(previewBoat);previewScene.add(previewBoat);
+  previewControls=new OrbitControls(previewCamera,canvas);previewControls.enablePan=false;previewControls.minDistance=6;previewControls.maxDistance=14;previewControls.target.set(0,1.6,0);previewControls.enableDamping=true;
 }
-addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const h=$('.boat-preview');previewRenderer.setSize(h.clientWidth,h.clientHeight);previewCamera.aspect=h.clientWidth/h.clientHeight;previewCamera.updateProjectionMatrix()}});
-applyWeather('clear');applyTime(14.5);updateHud();animate();document.body.classList.add('three-ready');
+
+const clock=new THREE.Clock(),menuCameraTarget=new THREE.Vector3(),menuCameraPosition=new THREE.Vector3();
+function updateHud(physics){
+  const q=boatRoot.quaternion,forward=new THREE.Vector3(0,0,-1).applyQuaternion(q),heading=(THREE.MathUtils.radToDeg(Math.atan2(forward.x,-forward.z))+360)%360,dirs=['N','NE','E','SE','S','SW','W','NW'];
+  $('#heading').textContent=dirs[Math.round(heading/45)%8];$('.compass span').textContent=String(Math.round(heading)).padStart(3,'0')+'°';$('#speed').textContent=physics.speedKnots.toFixed(1);
+  $('.weather-pill').textContent=`${{clear:'☀ 晴朗',cloudy:'☁ 多雲',sunset:'◐ 黃昏',fog:'≋ 霧氣',night:'☾ 夜晚'}[appState.weather]} · 風力 ${Math.max(1,Math.round(environment.state.windSpeed/2))} 級`;
+}
+
+function animate(){
+  requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),elapsed=clock.elapsedTime;
+  const rudder=(appState.keys.has('a')?1:0)-(appState.keys.has('d')?1:0);if(appState.keys.has('w'))appState.sailTrim=clamp(appState.sailTrim+dt*.45,.2,1);if(appState.keys.has('s'))appState.sailTrim=clamp(appState.sailTrim-dt*.45,.2,1);
+  const env=environment.update(dt,elapsed,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,elapsed,env,boatRoot.position);
+  const physics=boatPhysics.update(dt,elapsed,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
+  boatRoot.userData.lod.update(camera);worldSystem.update(dt,elapsed,env);wake.update(dt,elapsed,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update();
+  if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
+  else{menuCameraPosition.set(10+Math.sin(elapsed*.08)*2.5,5.8,11).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position).add(new THREE.Vector3(0,1.7,0));camera.lookAt(menuCameraTarget)}
+  renderer.render(scene,camera);
+  if(previewRenderer&&$('#customize')?.classList.contains('open')){previewControls.update();previewRenderer.render(previewScene,previewCamera)}
+  updateHud(physics);
+}
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY_PRESETS[appState.quality].pixelRatio));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const host=$('.boat-preview');previewRenderer.setSize(host.clientWidth,host.clientHeight,false);previewCamera.aspect=host.clientWidth/host.clientHeight;previewCamera.updateProjectionMatrix()}});
+applyBoatStyle();if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;environment.setPreset('clear');environment.setTime(14.5);document.body.classList.add('three-ready');animate();
