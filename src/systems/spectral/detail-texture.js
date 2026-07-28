@@ -74,10 +74,10 @@ export function createOceanDetailTexture(size = 512, seed = 0x1f2e3d4c) {
       );
       const offset = (y * size + x) * 4;
       data[offset] = Math.round(
-        THREE.MathUtils.clamp(0.5 - dx * 1.5, 0, 1) * 255,
+        THREE.MathUtils.clamp(0.5 - dx * 7.5, 0, 1) * 255,
       );
       data[offset + 1] = Math.round(
-        THREE.MathUtils.clamp(0.5 - dy * 1.5, 0, 1) * 255,
+        THREE.MathUtils.clamp(0.5 - dy * 7.5, 0, 1) * 255,
       );
       data[offset + 2] = Math.round(height * 255);
       data[offset + 3] = Math.round(fine * 255);

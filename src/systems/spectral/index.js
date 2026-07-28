@@ -38,6 +38,8 @@ export function createSpectralLayer(renderer, qualityName = 'high') {
     system = null;
     currentQuality = name;
     detailTexture = createOceanDetailTexture(quality.detailSize, 0x1f2e3d4c);
+    const maxAnisotropy = renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+    detailTexture.anisotropy = Math.min(8, maxAnisotropy);
 
     if (!renderer?.capabilities?.isWebGL2 || !renderer?.extensions?.has?.('EXT_color_buffer_float')) {
       validation = { pass: false, reason: 'webgl2-float-targets-unavailable' };

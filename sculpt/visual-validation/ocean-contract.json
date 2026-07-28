@@ -24,6 +24,8 @@
     "The spectral ocean uses a deterministic seed of 481516.",
     "No ocean mesh edge is visible at the horizon.",
     "No regular parallel comb or moire bands appear in chase or oblique cinematic views.",
+    "The final surface reads as irregular multi-scale patches rather than long uniform ribbons.",
+    "Sky reflection remains Fresnel-bounded and is broken up by the resolved spectral normal.",
     "No shader program reports a runnable failure.",
     "Camera transitions have one interpolation owner."
   ],
