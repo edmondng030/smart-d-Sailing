@@ -23,7 +23,7 @@ const scene=new THREE.Scene();
 const camera=createCamera();
 const {renderer,applyQuality}=createRenderer($('#world'),appState.quality);
 const environment=createEnvironmentSystem(scene,renderer);
-const ocean=createOceanSystem(scene,appState.quality);
+const ocean=createOceanSystem(scene,renderer,appState.quality);
 const worldSystem=createWorldSystem(scene);
 const boatRoot=createBoatVisual(renderer);scene.add(boatRoot);
 const physicsWorld=new RAPIER.World({x:0,y:-9.81,z:0});physicsWorld.timestep=1/60;
@@ -84,6 +84,7 @@ function initPreview(){
 }
 
 const clock=new THREE.Clock(),menuCameraTarget=new THREE.Vector3(),menuCameraPosition=new THREE.Vector3();
+let diagnosticsPublished=false;
 function updateHud(physics){
   const q=boatRoot.quaternion,forward=new THREE.Vector3(0,0,-1).applyQuaternion(q),heading=(THREE.MathUtils.radToDeg(Math.atan2(forward.x,-forward.z))+360)%360,dirs=['N','NE','E','SE','S','SW','W','NW'];
   $('#heading').textContent=dirs[Math.round(heading/45)%8];$('.compass span').textContent=String(Math.round(heading)).padStart(3,'0')+'°';$('#speed').textContent=physics.speedKnots.toFixed(1);
@@ -99,6 +100,13 @@ function animate(){
   if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
   else{menuCameraPosition.set(10+Math.sin(elapsed*.08)*2.5,5.8,11).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position).add(new THREE.Vector3(0,1.7,0));camera.lookAt(menuCameraTarget)}
   renderer.render(scene,camera);
+  if(import.meta.env.DEV&&!diagnosticsPublished&&elapsed>1){
+    const failedPrograms=renderer.info.programs.filter(program=>program.diagnostics&&program.diagnostics.runnable===false);
+    document.documentElement.dataset.spectralOcean=JSON.stringify(ocean.spectral.diagnostics);
+    document.documentElement.dataset.shaderFailures=String(failedPrograms.length);
+    document.documentElement.dataset.webgl2=String(renderer.capabilities.isWebGL2);
+    diagnosticsPublished=true;
+  }
   if(previewRenderer&&$('#customize')?.classList.contains('open')){previewControls.update();previewRenderer.render(previewScene,previewCamera)}
   updateHud(physics);
 }
