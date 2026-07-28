@@ -1,0 +1,251 @@
+{
+  "sourceImage": "D:\\Users\\ewhng\\Documents\\3D Sailing\\3D boat.png",
+  "zonesDir": "D:\\Users\\ewhng\\Documents\\3D Sailing\\sculpt\\detail-zones",
+  "detailInventory": {
+    "scanMethod": "grid-3x3",
+    "targetMinDetails": 15,
+    "details": [
+      {
+        "id": "hull-plank-seams",
+        "kind": "seam",
+        "description": "Horizontal plank seams across the white and blue painted hull bands",
+        "region": {
+          "component": "hull-side"
+        },
+        "scale": "meso",
+        "affects": "geometry+AO",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "hull-shell.plank-seams"
+        },
+        "evidenceRef": "reference:side-view+hull-texture",
+        "confidence": 0.96
+      },
+      {
+        "id": "paint-edge-wear",
+        "kind": "chip",
+        "description": "Irregular blue and white paint loss exposing warmer wood along plank edges and bow/stern",
+        "region": {
+          "component": "hull-shell"
+        },
+        "scale": "micro",
+        "affects": "albedo+roughness",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "marine-paint.edge-wear"
+        },
+        "evidenceRef": "reference:side-view+hull-texture",
+        "confidence": 0.92
+      },
+      {
+        "id": "waterline-band",
+        "kind": "linework",
+        "description": "Thin red-brown anti-fouling separator between white topside and blue lower hull",
+        "region": {
+          "component": "hull-shell"
+        },
+        "scale": "meso",
+        "affects": "albedo",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "marine-paint.waterline-band"
+        },
+        "evidenceRef": "reference:front+side-view",
+        "confidence": 0.98
+      },
+      {
+        "id": "gunwale-rub-rail",
+        "kind": "ridge",
+        "description": "Raised varnished wood rail following the full sheer line",
+        "region": {
+          "component": "gunwale"
+        },
+        "scale": "meso",
+        "affects": "geometry+gloss",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "gunwale.raised-rub-rail"
+        },
+        "evidenceRef": "reference:front+side+top-view",
+        "confidence": 0.98
+      },
+      {
+        "id": "deck-plank-joinery",
+        "kind": "seam",
+        "description": "Longitudinal deck planks with darker caulk gaps and cross joints",
+        "region": {
+          "component": "deck"
+        },
+        "scale": "meso",
+        "affects": "geometry+AO+roughness",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "deck.plank-joinery"
+        },
+        "evidenceRef": "reference:top-view",
+        "confidence": 0.97
+      },
+      {
+        "id": "wood-grain-wear",
+        "kind": "scratch",
+        "description": "Directional timber grain with lighter worn edges on deck, cabin, mast, boom, and helm",
+        "region": {
+          "component": "wood-components"
+        },
+        "scale": "micro",
+        "affects": "albedo+normal+roughness",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "varnished-wood.directional-grain"
+        },
+        "evidenceRef": "reference:top-view+detail-closeups",
+        "confidence": 0.94
+      },
+      {
+        "id": "sail-panel-seams",
+        "kind": "stitch",
+        "description": "Curved horizontal sail panel seams and reinforced perimeter hems",
+        "region": {
+          "component": "main-sail+jib"
+        },
+        "scale": "meso",
+        "affects": "geometry+albedo+roughness",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "sail-system.panel-seams"
+        },
+        "evidenceRef": "reference:front+side-view",
+        "confidence": 0.95
+      },
+      {
+        "id": "sail-stains",
+        "kind": "stain",
+        "description": "Warm grey weathering concentrated along sail seams, corners, and lower edges",
+        "region": {
+          "component": "main-sail+jib"
+        },
+        "scale": "micro",
+        "affects": "albedo+roughness",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "canvas-sail.seam-weathering"
+        },
+        "evidenceRef": "reference:front+side-view",
+        "confidence": 0.88
+      },
+      {
+        "id": "rope-lay",
+        "kind": "ridge",
+        "description": "Helical strand relief on standing rigging, coiled lines, and bollard wraps",
+        "region": {
+          "component": "rigging"
+        },
+        "scale": "micro",
+        "affects": "normal+geometry",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "rigging-system.helical-rope-lay"
+        },
+        "evidenceRef": "reference:detail-bollard+top-view",
+        "confidence": 0.91
+      },
+      {
+        "id": "helm-spokes",
+        "kind": "fastener",
+        "description": "Eight radial wooden wheel spokes with central metal hub and hand-worn rim",
+        "region": {
+          "component": "helm"
+        },
+        "scale": "meso",
+        "affects": "geometry+roughness",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "helm.eight-spoke-array"
+        },
+        "evidenceRef": "reference:helm-closeup",
+        "confidence": 0.99
+      },
+      {
+        "id": "life-ring-straps",
+        "kind": "stitch",
+        "description": "Alternating off-white and red-orange life-ring quadrants with four rope retainers",
+        "region": {
+          "component": "life-ring"
+        },
+        "scale": "meso",
+        "affects": "geometry+albedo",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "life-ring.retainer-array"
+        },
+        "evidenceRef": "reference:life-ring-closeup",
+        "confidence": 0.99
+      },
+      {
+        "id": "lamp-glow",
+        "kind": "emissive",
+        "description": "Warm amber lantern bulb inside blackened metal frame and clear glass enclosure",
+        "region": {
+          "component": "navigation-lamps"
+        },
+        "scale": "micro",
+        "affects": "emissive+transmission",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "lantern-glass.warm-emission"
+        },
+        "evidenceRef": "reference:lamp-closeup",
+        "confidence": 0.99
+      },
+      {
+        "id": "cabin-portholes",
+        "kind": "hole",
+        "description": "Two circular dark glass portholes with raised brass/wood rims on cabin side",
+        "region": {
+          "component": "cabin"
+        },
+        "scale": "meso",
+        "affects": "geometry+glass",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "cabin.twin-portholes"
+        },
+        "evidenceRef": "reference:side-view",
+        "confidence": 0.98
+      },
+      {
+        "id": "cleat-bolts",
+        "kind": "fastener",
+        "description": "Paired cleats and bollards with raised metal bases, rope wraps, and attachment bolts",
+        "region": {
+          "component": "deck-hardware"
+        },
+        "scale": "micro",
+        "affects": "geometry+metalness",
+        "mapsTo": {
+          "type": "component.localFeatures",
+          "ref": "deck-hardware.fastener-array"
+        },
+        "evidenceRef": "reference:cleat+bollard-closeups",
+        "confidence": 0.96
+      },
+      {
+        "id": "anchor-flag-mark",
+        "kind": "decal",
+        "description": "White anchor emblem on the blue forked masthead flag",
+        "region": {
+          "component": "masthead-flag"
+        },
+        "scale": "meso",
+        "affects": "albedo",
+        "mapsTo": {
+          "type": "material.localOverrides",
+          "ref": "flag-cloth.anchor-decal"
+        },
+        "evidenceRef": "reference:flag-closeup",
+        "confidence": 0.99
+      }
+    ]
+  },
+  "authoringInstruction": "Open each zone crop under zonesDir and replace every detail stub's kind, description, scale, affects, mapsTo, and confidence with what is actually observed. Add more detail entries per zone if a single zone contains multiple distinct marks; do not leave stubs unfilled or unlinked (mapsTo must reference a real component.localFeatures or material.localOverrides entry)."
+}
