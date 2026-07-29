@@ -15,10 +15,11 @@ const lookMatrix = new THREE.Matrix4();
 const CAMERA_MODES = [
   { name: 'chase', offset: [.52, .9, 1.85], targetForward: .65, targetUp: .5, fov: 44, response: 8.5 },
   { name: 'deck', offset: [.05, .73, .42], targetForward: 1.05, targetUp: .5, fov: 50, response: 12 },
-  { name: 'cinematic', offset: [2.45, 1.25, 2.6], targetForward: .38, targetUp: .55, fov: 42, response: 5.4 }
+  { name: 'cinematic', offset: [2.45, 1.25, 2.6], targetForward: .38, targetUp: .55, fov: 42, response: 5.4 },
+  { name: 'oblique', offset: [3.1, 2.45, 3.15], targetForward: .2, targetUp: .15, fov: 48, response: 6 }
 ];
 
-const CAMERA_BOOKMARKS = Object.freeze({ near: 1, design: 0, far: 2 });
+const CAMERA_BOOKMARKS = Object.freeze({ near: 1, design: 0, far: 2, oblique: 3 });
 
 export function createFollowCamera(camera) {
   let mode = 0;

@@ -5,12 +5,14 @@
     "The boat remains the clear subject at design distance.",
     "Long swell, wind waves and capillary detail read as distinct wavelength bands.",
     "Whitecaps are sparse, broken and attached to persistent compression regions.",
-    "Water reads as a dielectric interface over an absorbing body, not transparent blue plastic."
+    "Water reads as a dielectric interface over an absorbing body, not transparent blue plastic.",
+    "Dark troughs, Fresnel-bounded sky reflection and crest-local turquoise transmission form the cinematic water identity."
   ],
   "cameraEnvelope": {
     "near": "deck",
     "design": "chase",
-    "far": "cinematic"
+    "far": "cinematic",
+    "failureSensitive": "oblique"
   },
   "lightingEnvelope": [
     "clear afternoon",
@@ -26,8 +28,10 @@
     "No regular parallel comb or moire bands appear in chase or oblique cinematic views.",
     "The final surface reads as irregular multi-scale patches rather than long uniform ribbons.",
     "Sky reflection remains Fresnel-bounded and is broken up by the resolved spectral normal.",
+    "No straight triangle edges, diagonal seams or polygonal LOD boundaries appear in high-angle oblique views.",
     "No shader program reports a runnable failure.",
-    "Camera transitions have one interpolation owner."
+    "Camera transitions have one interpolation owner.",
+    "Crest subsurface response remains local to raised or Jacobian-compressed water and never becomes a directional body-colour stripe."
   ],
   "performanceBudget": {
     "designViewport": [
@@ -41,6 +45,7 @@
     "The project keeps a WebGL2 fragment-IFFT backend instead of requiring WebGPU and TSL.",
     "Open-ocean transmission uses an analytic fallback depth because the app has no scene-depth or scene-colour prepass.",
     "Foreground screen refraction is intentionally absent until a stable scene-colour ownership path exists.",
-    "Low and medium modes retain all three simulated cascades while material weights reduce fine detail."
+    "Low and medium modes retain all three simulated cascades while material weights reduce fine detail.",
+    "OceanThreejs is an MIT-licensed optical reference only; its extra Gerstner displacement, repeated single-tile cascades and sand refraction pass are not vendored."
   ]
 }

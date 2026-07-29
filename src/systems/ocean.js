@@ -9,7 +9,7 @@ const tmpSunDirection = new THREE.Vector3();
 
 export const OCEAN_DEBUG_MODES = Object.freeze({
   final: 0, cascades: 1, normals: 2, foam: 3, fresnel: 4, reflection: 5, absorption: 6,
-  'no-foam': 7, 'no-detail': 8, jacobian: 9, lod: 10, detail: 11
+  'no-foam': 7, 'no-detail': 8, jacobian: 9, lod: 10, detail: 11, subsurface: 12
 });
 
 function normalisedDirection([x, y]) {
@@ -50,6 +50,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     uShallow: { value: new THREE.Color('#3ca6a0') }, uHorizon: { value: new THREE.Color('#c9dde0') },
     uSky: { value: new THREE.Color('#8fc6df') },
     uSunColour: { value: new THREE.Color('#fff2d2') }, uSunDirection: { value: new THREE.Vector3(-.35, .72, .6).normalize() },
+    uSunIntensity: { value: 1.35 },
     uWindDirection: { value: new THREE.Vector2(1, .25).normalize() },
     uSpectralDisplacement0: { value: initialCascades[0].displacement },
     uSpectralDisplacement1: { value: initialCascades[1].displacement },
@@ -118,7 +119,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     fragmentShader: `
       #define MAX_WAVES 6
       uniform vec3 uDeep; uniform vec3 uMid; uniform vec3 uShallow; uniform vec3 uHorizon;
-      uniform vec3 uSky; uniform vec3 uSunColour; uniform vec3 uSunDirection; uniform vec2 uWindDirection;
+      uniform vec3 uSky; uniform vec3 uSunColour; uniform vec3 uSunDirection; uniform float uSunIntensity; uniform vec2 uWindDirection;
       uniform vec3 uAbsorption; uniform float uFallbackDepth; uniform float uDetailStrength; uniform float uRoughness; uniform int uDebugMode;
       uniform float uTime; uniform float uFoamThreshold; uniform float uWaveEnergy; uniform float uDetailLevel;
       uniform int uWaveCount; uniform int uGeometryWaveCount; uniform vec4 uWaves[MAX_WAVES]; uniform float uWaveSpeeds[MAX_WAVES];
@@ -181,11 +182,13 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
         return (slopeA * .72 * keepA + slopeB * .34 * keepB) * uDetailLevel;
       }
       vec3 skyRadiance(vec3 direction) {
-        float vertical = smoothstep(-.22, .75, direction.y);
-        vec3 gradient = mix(uHorizon, uSky, vertical);
+        float up = clamp(direction.y, -1.0, 1.0);
+        vec3 above = mix(uHorizon, uSky, pow(max(up, 0.0), .48));
+        vec3 below = mix(uHorizon, uDeep, clamp(-up * 3.2, 0.0, 1.0));
+        vec3 gradient = mix(below, above, step(0.0, up));
         float sunAlignment = max(dot(normalize(direction), normalize(uSunDirection)), 0.0);
-        vec3 disc = uSunColour * pow(sunAlignment, 1200.0) * 5.0;
-        vec3 halo = uSunColour * pow(sunAlignment, 9.0) * .24;
+        vec3 disc = uSunColour * pow(sunAlignment, 1200.0) * (4.4 * uSunIntensity);
+        vec3 halo = uSunColour * pow(sunAlignment, 9.0) * (.2 * uSunIntensity);
         return gradient + disc + halo;
       }
 
@@ -203,7 +206,9 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
       }
 
       void main() {
-        float pixelFootprint = max(length(dFdx(vWorld.xz)), length(dFdy(vWorld.xz)));
+        float planarDistance = distance(cameraPosition.xz, vWorld.xz);
+        float pixelFootprint = planarDistance * planarDistance * .001 /
+          max(abs(cameraPosition.y), .5);
         float fragmentHeight = 0.0;
         float fragmentCrest = 0.0;
         vec2 fragmentGradient = vec2(0.0);
@@ -267,7 +272,11 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
         float noL = max(dot(normal, lightDirection), 0.0);
         float f0 = .02037;
         float fresnel = f0 + (1.0 - f0) * pow(1.0 - opticalNoV, 5.0);
-        vec3 reflectedDirection = normalize(reflect(-viewDir, opticalNormal));
+        vec3 reflectedDirection = reflect(-viewDir, opticalNormal);
+        // Above-water reflection must stay in the sky hemisphere. Grazing
+        // microfacets can otherwise sample the lower analytic sky as a screen band.
+        reflectedDirection.y = max(abs(reflectedDirection.y), .025);
+        reflectedDirection = normalize(reflectedDirection);
         float surfaceRoughness = mix(uRoughness, min(.22, uRoughness * 1.8), smoothstep(.15, 2.5, pixelFootprint));
         float reflectionSpread = mix(.035, .18, clamp(surfaceRoughness * 6.0, 0.0, 1.0));
         vec3 reflectionTangent = normalize(cross(abs(reflectedDirection.y) > .98 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0), reflectedDirection));
@@ -286,24 +295,33 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
 
         float downView = clamp(viewDir.y, 0.0, 1.0);
         float jacobian = (1.0 + derivative.z) * (1.0 + derivative.w);
-        float resolvedSlope = length(spectralSlope * uSpectralNormalStrength + micro * .45);
-        float bodyDepth = clamp(downView * .72 + resolvedSlope * .22, 0.0, 1.0);
-        float crestLight = smoothstep(.12, .48, resolvedSlope + max(1.0 - jacobian, 0.0) * .65);
-        vec3 nearBody = mix(uMid, uShallow, crestLight * .42 + (1.0 - bodyDepth) * .12);
+        float breakingCompression = max(1.0 - jacobian, 0.0);
+        float bodyDepth = clamp(downView * .78 + length(micro) * .04, 0.0, 1.0);
+        float crestLight = smoothstep(.32, .82, breakingCompression);
+        vec3 nearBody = mix(uMid, uShallow, crestLight * .18 + (1.0 - bodyDepth) * .1);
         vec3 transmitted = mix(uDeep, nearBody, transmittance);
         float forwardScatter = pow(max(dot(viewDir, -lightDirection), 0.0), 4.0);
-        transmitted += uShallow * forwardScatter * .24 * (1.0 - fresnel);
+        transmitted += uShallow * forwardScatter * .2 * uSunIntensity * (1.0 - fresnel);
+
+        // OceanThreejs-inspired crest transmission: use height and real
+        // horizontal compression, never raw directional slope as body colour.
+        float raisedCrest = smoothstep(.04, .52, max(vHeight, 0.0));
+        float crestScatter = clamp(raisedCrest * .38 + crestLight * .82, 0.0, 1.0);
+        float wrappedLight = clamp(dot(normal, lightDirection) * .5 + .5, 0.0, 1.0);
+        vec3 subsurface = uShallow * crestScatter * wrappedLight * .16 * uSunIntensity * (1.0 - fresnel);
+        transmitted += subsurface;
 
         vec3 halfVector = normalize(viewDir + lightDirection);
         float noH = max(dot(normal, halfVector), 0.0);
         float voH = max(dot(viewDir, halfVector), 0.0);
+        float specularFresnel = f0 + (1.0 - f0) * pow(1.0 - voH, 5.0);
         float specular = ggxD(noH, surfaceRoughness) * smith(noV, noL, surfaceRoughness) *
-          (f0 + (1.0 - f0) * pow(1.0 - voH, 5.0)) * noL;
+          specularFresnel / max(4.0 * noV * max(noL, .001), .001) * noL;
         vec3 water = mix(transmitted, reflection, fresnel);
-        water += uSunColour * specular * .34;
-        float sparkleKeep = 1.0 - smoothstep(.06, .22, pixelFootprint);
+        water += uSunColour * specular * (.72 * uSunIntensity);
+        float sparkleKeep = 1.0 - smoothstep(.12, .62, pixelFootprint);
         float sparkleMask = smoothstep(.56, .9, fbm(vOceanXZ * 2.5 + uWindDirection * uTime * .5));
-        water += uSunColour * pow(max(dot(reflectedDirection, lightDirection), 0.0), 320.0) * sparkleMask * sparkleKeep * 1.4;
+        water += uSunColour * pow(max(dot(reflectedDirection, lightDirection), 0.0), 320.0) * sparkleMask * sparkleKeep * (.72 * uSunIntensity);
 
         float historyRaw =
           clamp((uSpectralFoamThreshold - mix(1.0, displacement0.a, spectralKeep0)) * uSpectralFoamScale, 0.0, 1.0) +
@@ -336,12 +354,13 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
         }
         if (uDebugMode == 10) { gl_FragColor = vec4(spectralKeep0, spectralKeep1, spectralKeep2, 1.0); return; }
         if (uDebugMode == 11) { gl_FragColor = vec4(micro * .5 + .5, length(micro) * 3.0, 1.0); return; }
+        if (uDebugMode == 12) { gl_FragColor = vec4(subsurface * 4.0, 1.0); return; }
 
         float foamEnabled = uDebugMode == 7 ? 0.0 : 1.0;
         vec3 foamColour = mix(uHorizon, vec3(.94, .985, 1.0), .62);
         float foamLight = .55 + .55 * noL;
         water = mix(water, foamColour * foamLight, foamCoverage * .66 * foamEnabled);
-        water += uShallow * noL * crestLight * .065;
+        water += uShallow * noL * crestLight * .03;
         float distanceToCamera = distance(cameraPosition.xz, vWorld.xz);
         float distanceFog = 1.0 - exp(-distanceToCamera * distanceToCamera * .0000018);
         water = mix(water, uHorizon, clamp(distanceFog, 0.0, .94));
@@ -416,6 +435,8 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     uniforms.uSky.value.lerp(environment.sky, blend); uniforms.uSunColour.value.lerp(environment.sun, blend);
     const phi=THREE.MathUtils.degToRad(90-environment.sunElevation),theta=THREE.MathUtils.degToRad(environment.sunAzimuth);
     tmpSunDirection.setFromSphericalCoords(1,phi,theta);uniforms.uSunDirection.value.lerp(tmpSunDirection,blend).normalize();
+    const daylight = Math.max(0, Math.sin(THREE.MathUtils.degToRad(environment.sunElevation)));
+    uniforms.uSunIntensity.value = THREE.MathUtils.damp(uniforms.uSunIntensity.value, .18 + daylight * 1.42, .8, dt);
     uniforms.uWindDirection.value.set(environment.windDirection.x,environment.windDirection.z).normalize();
     uniforms.uWaveEnergy.value=THREE.MathUtils.damp(uniforms.uWaveEnergy.value,environment.waveIntensity,.8,dt);
     uniforms.uFoamThreshold.value = THREE.MathUtils.damp(uniforms.uFoamThreshold.value, environment.foam, .8, dt);
