@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { chooseInitialQuality, QUALITY_PRESETS } from './src/config.js';
+import { chooseInitialQuality, QUALITY_PRESETS, BOAT } from './src/config.js';
 import { createRenderer, createCamera } from './src/core/renderer.js';
 import { createOceanSystem } from './src/systems/ocean.js';
 import { createEnvironmentSystem } from './src/systems/environment.js';
@@ -21,7 +21,7 @@ const clamp=THREE.MathUtils.clamp;
 const launchParams=new URLSearchParams(location.search);
 const requestedQuality=launchParams.get('quality');
 const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:chooseInitialQuality();
-const appState={mode:'menu',weather:'clear',hour:14.5,quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
+const appState={mode:'menu',weather:'clear',hour:14.5,quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
 
 const scene=new THREE.Scene();
 const camera=createCamera();
@@ -72,6 +72,19 @@ function handleAction(action,button){
 }
 $$('[data-action]').forEach(button=>button.addEventListener('click',()=>handleAction(button.dataset.action,button)));
 
+function bindTouchHold(selector,stateKey,dataKey){
+  $$(selector).forEach(button=>{
+    const value=Number(button.dataset[dataKey]);
+    const setActive=active=>{appState[stateKey]=active?value:0;button.classList.toggle('pressed',active)};
+    button.addEventListener('pointerdown',event=>{event.preventDefault();button.setPointerCapture?.(event.pointerId);setActive(true)});
+    ['pointerup','pointercancel','lostpointercapture'].forEach(type=>button.addEventListener(type,()=>setActive(false)));
+    button.addEventListener('contextmenu',event=>event.preventDefault());
+  });
+}
+bindTouchHold('[data-steer]','touchRudder','steer');
+bindTouchHold('[data-trim]','touchTrim','trim');
+addEventListener('blur',()=>{appState.touchRudder=0;appState.touchTrim=0});
+
 addEventListener('keydown',event=>{appState.keys.add(event.key.toLowerCase());if(event.key==='Escape'){if(overlay.classList.contains('open'))closeModal();else if(appState.mode==='game')handleAction('home')}if(appState.mode==='game'&&event.key.toLowerCase()==='m')openModal('map')});
 addEventListener('keyup',event=>appState.keys.delete(event.key.toLowerCase()));
 
@@ -98,12 +111,12 @@ function updateHud(physics){
 
 function animate(){
   requestAnimationFrame(animate);visualValidation.beginFrame();const dt=Math.min(clock.getDelta(),.05),elapsed=clock.elapsedTime,simulationTime=visualValidation.simulationTime(elapsed);
-  const rudder=(appState.keys.has('a')?1:0)-(appState.keys.has('d')?1:0);if(appState.keys.has('w'))appState.sailTrim=clamp(appState.sailTrim+dt*.45,.2,1);if(appState.keys.has('s'))appState.sailTrim=clamp(appState.sailTrim-dt*.45,.2,1);
+  const rudder=clamp((appState.keys.has('a')?1:0)-(appState.keys.has('d')?1:0)+appState.touchRudder,-1,1);const trimInput=(appState.keys.has('w')?1:0)-(appState.keys.has('s')?1:0)+appState.touchTrim;if(trimInput)appState.sailTrim=clamp(appState.sailTrim+Math.sign(trimInput)*dt*.45,.2,1);
   const env=environment.update(dt,simulationTime,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,simulationTime,env,boatRoot.position);
   const physics=boatPhysics.update(dt,simulationTime,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
   boatRoot.userData.lod.update(camera);worldSystem.update(dt,simulationTime,env);wake.update(dt,simulationTime,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update(simulationTime);
   if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
-  else{menuCameraPosition.set(10+Math.sin(elapsed*.08)*2.5,5.8,11).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position).add(new THREE.Vector3(0,1.7,0));camera.lookAt(menuCameraTarget)}
+  else{const portraitFrame=clamp((.82-camera.aspect)/.42,0,1);menuCameraPosition.set(BOAT.length*(2.3+portraitFrame*.72+Math.sin(elapsed*.08)*.57),BOAT.length*(1.33+portraitFrame*.28),BOAT.length*(2.53+portraitFrame*.78)).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position);menuCameraTarget.y+=BOAT.length*(.39+portraitFrame*.05);camera.lookAt(menuCameraTarget)}
   renderer.render(scene,camera);
   visualValidation.endFrame();visualValidation.publish(elapsed);
   if(import.meta.env.DEV&&!diagnosticsPublished&&elapsed>1){

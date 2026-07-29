@@ -77,7 +77,10 @@ export function createFollowCamera(camera) {
     yawEuler.z = 0;
     stableQuaternion.setFromEuler(yawEuler);
     const config = CAMERA_MODES[mode];
+    const portraitFrame = THREE.MathUtils.clamp((.82 - camera.aspect) / .42, 0, 1);
     localOffset.set(...config.offset).multiplyScalar(BOAT.length);
+    localOffset.x *= 1 - portraitFrame * .5;
+    localOffset.z += portraitFrame * BOAT.length * .62;
     desiredPosition.copy(localOffset).applyQuaternion(stableQuaternion).add(boatTransform.position);
     forward.set(0, 0, -1).applyQuaternion(stableQuaternion);
     side.set(1, 0, 0).applyQuaternion(stableQuaternion);
@@ -86,7 +89,7 @@ export function createFollowCamera(camera) {
     const turnLag = THREE.MathUtils.clamp(boatTransform.angularHint || 0, -1, 1);
     desiredPosition.addScaledVector(side, -turnLag * BOAT.beam * .34);
     desiredTarget.copy(boatTransform.position)
-      .addScaledVector(forward, config.targetForward * BOAT.length);
+      .addScaledVector(forward, config.targetForward * BOAT.length * (1 - portraitFrame * .12));
     desiredTarget.y += config.targetUp * BOAT.length;
 
     if (enabled && !bookmark) {
@@ -100,16 +103,17 @@ export function createFollowCamera(camera) {
     }
     lookMatrix.lookAt(desiredPosition, desiredTarget, WORLD_UP);
     desiredQuaternion.setFromRotationMatrix(lookMatrix);
-    return config;
+    return { config, portraitFrame, fov: config.fov + portraitFrame * 4 };
   }
 
   function update(dt, boatTransform, speedKnots, environment, enabled = true) {
     dt = Math.min(dt, .05);
-    const config = resolvePose(dt, boatTransform, speedKnots, environment, enabled);
+    const frame = resolvePose(dt, boatTransform, speedKnots, environment, enabled);
+    const { config } = frame;
 
     if (bookmark) {
       if (!frozenPose) frozenPose = {
-        position: desiredPosition.clone(), quaternion: desiredQuaternion.clone(), fov: config.fov,
+        position: desiredPosition.clone(), quaternion: desiredQuaternion.clone(), fov: frame.fov,
         target: desiredTarget.clone()
       };
       camera.position.copy(frozenPose.position);
@@ -126,7 +130,7 @@ export function createFollowCamera(camera) {
       const eased = 1 - Math.pow(1 - t, 1.8);
       camera.position.lerpVectors(transition.startPosition, desiredPosition, eased);
       camera.quaternion.slerpQuaternions(transition.startQuaternion, desiredQuaternion, eased);
-      camera.fov = THREE.MathUtils.lerp(transition.startFov, config.fov, eased);
+      camera.fov = THREE.MathUtils.lerp(transition.startFov, frame.fov, eased);
       camera.userData.target = desiredTarget.clone();
       camera.updateProjectionMatrix();
       if (t >= 1) transition = null;
@@ -137,7 +141,7 @@ export function createFollowCamera(camera) {
     camera.position.lerp(desiredPosition, response);
     camera.quaternion.slerp(desiredQuaternion, response);
     const speedFov = mode === 0 ? Math.min(speedKnots, 12) * .16 : 0;
-    camera.fov = THREE.MathUtils.damp(camera.fov, config.fov + speedFov, 4, dt);
+    camera.fov = THREE.MathUtils.damp(camera.fov, frame.fov + speedFov, 4, dt);
     camera.userData.target = desiredTarget.clone();
     camera.updateProjectionMatrix();
   }
@@ -151,7 +155,8 @@ export function createFollowCamera(camera) {
         owner: 'follow-camera', mode: config.name, bookmark, subjectLength: BOAT.length,
         offsetInBoatLengths: config.offset, lagDistance, lagVelocity,
         transition: transition ? { t: transition.elapsed / transition.duration, duration: transition.duration } : null,
-        projection: { fov: camera.fov, near: camera.near, far: camera.far }
+        projection: { fov: camera.fov, near: camera.near, far: camera.far, aspect: camera.aspect },
+        portraitFrame: THREE.MathUtils.clamp((.82 - camera.aspect) / .42, 0, 1)
       };
     }
   };

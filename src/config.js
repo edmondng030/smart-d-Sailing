@@ -27,7 +27,7 @@ export const WEATHER_PRESETS = {
 export const BOAT = { length:4.35, beam:1.58, hullHeight:1.05, mastHeightAboveDeck:3.45, draftDepth:.55, mass:260, buoyancyStrength:640, buoyancyDamping:125, forwardDrag:.8, sideDrag:4.5, verticalDrag:2.2, angularDamping:1.4, rightingStrength:760, rollPitchDamping:185, sailForce:1.65, rudderEfficiency:1.25 };
 
 export function chooseInitialQuality() {
-  const mobile = matchMedia('(max-width: 760px)').matches;
+  const mobile = matchMedia('(max-width: 760px), (max-height: 500px) and (orientation: landscape)').matches;
   const constrained = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
   return mobile || constrained ? 'medium' : 'high';
 }

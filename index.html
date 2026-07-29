@@ -2,7 +2,8 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#071d2b" />
   <title>Sail Away — 小船航海</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -34,6 +35,16 @@
       <div class="wind-dial"><span>風向</span><b>↗</b><small>12 kn</small></div>
       <div class="speed"><b id="speed">6.2</b><span>kn</span><div class="speed-bar"><i></i></div></div>
       <div class="game-actions"><button data-action="anchor">⚓<span>下錨</span></button><button data-open="map">⌖<span>海圖</span></button><button data-open="customize">◭<span>船隻</span></button><button data-action="camera">◉<span>視角</span></button></div>
+      <div class="mobile-controls" aria-label="Touch sailing controls">
+        <div class="mobile-control-group mobile-helm" aria-label="Steering">
+          <button type="button" data-steer="1" aria-label="Steer left">◀</button>
+          <button type="button" data-steer="-1" aria-label="Steer right">▶</button>
+        </div>
+        <div class="mobile-control-group mobile-trim" aria-label="Sail trim">
+          <button type="button" data-trim="1" aria-label="Increase sail trim">＋</button>
+          <button type="button" data-trim="-1" aria-label="Decrease sail trim">−</button>
+        </div>
+      </div>
       <div class="tip" id="tip">W / S 控制船帆 · A / D 改變航向</div>
       <button class="back-menu" data-action="home">ESC　返回主選單</button>
     </section>
