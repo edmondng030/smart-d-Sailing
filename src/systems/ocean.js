@@ -7,9 +7,17 @@ const TAU = Math.PI * 2;
 const tmpNormal = new THREE.Vector3();
 const tmpSunDirection = new THREE.Vector3();
 
+export const SPECTRAL_CONTACT_BAND_METRES = Object.freeze({ inner: 4, outer: 6 });
+
+export function spectralContactFade(distanceToBoat) {
+  const { inner, outer } = SPECTRAL_CONTACT_BAND_METRES;
+  const t = THREE.MathUtils.clamp((distanceToBoat - inner) / (outer - inner), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 export const OCEAN_DEBUG_MODES = Object.freeze({
   final: 0, cascades: 1, normals: 2, foam: 3, fresnel: 4, reflection: 5, absorption: 6,
-  'no-foam': 7, 'no-detail': 8, jacobian: 9, lod: 10, detail: 11, subsurface: 12, geometry: 13
+  'no-foam': 7, 'no-detail': 8, jacobian: 9, lod: 10, detail: 11, subsurface: 12, geometry: 13, contact: 14
 });
 
 function normalisedDirection([x, y]) {
@@ -62,6 +70,8 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     uSpectralPatchLengths: { value: new THREE.Vector3(250, 17, 5) },
     uSpectralCascadeWeights: { value: new THREE.Vector3(1, .55, .28) },
     uSpectralGeometryWeights: { value: new THREE.Vector3(1, .62, .22) },
+    uFocusXZ: { value: new THREE.Vector2() },
+    uSpectralContactBand: { value: new THREE.Vector2(SPECTRAL_CONTACT_BAND_METRES.inner, SPECTRAL_CONTACT_BAND_METRES.outer) },
     uSpectralTexelSize: { value: 1 / 128 },
     uSpectralGeometryStrength: { value: .03 }, uSpectralNormalStrength: { value: .68 }, uSpectralActive: { value: spectral.active ? 1 : 0 },
     uSpectralFoamThreshold: { value: .92 }, uSpectralFoamScale: { value: 5.5 },
@@ -78,8 +88,9 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
       uniform float uWaveSpeeds[MAX_WAVES]; uniform float uSteepness[MAX_WAVES];
       uniform sampler2D uSpectralDisplacement0; uniform sampler2D uSpectralDisplacement1; uniform sampler2D uSpectralDisplacement2;
       uniform vec3 uSpectralPatchLengths; uniform vec3 uSpectralGeometryWeights; uniform float uSpectralTexelSize; uniform float uSpectralGeometryStrength;
+      uniform vec2 uFocusXZ; uniform vec2 uSpectralContactBand;
       varying vec3 vWorld; varying vec3 vNormalW; varying vec2 vOceanXZ;
-      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory;
+      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory; varying float vSpectralContactFade;
 
       vec4 filteredVertexDisplacement(sampler2D map, vec2 uv, float footprint, float metresPerTexel) {
         float radius = clamp(footprint / max(metresPerTexel, 1e-4), 1.0, 3.0) * uSpectralTexelSize;
@@ -95,7 +106,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
       }
 
       void main() {
-        vec4 baseWorld = modelMatrix * vec4(position.x, 0.0, position.y, 1.0);
+        vec4 baseWorld = modelMatrix * vec4(position, 1.0);
         vec2 worldXZ = baseWorld.xz; float height = 0.0; vec2 horizontal = vec2(0.0); vec2 gradient = vec2(0.0); float crest = 0.0;
         float vertexFootprint =
           distance(cameraPosition.xz, worldXZ) * distance(cameraPosition.xz, worldXZ) * .001 /
@@ -127,8 +138,13 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
           spectral0.xyz * uSpectralGeometryWeights.x * spectralKeep0 +
           spectral1.xyz * uSpectralGeometryWeights.y * spectralKeep1 +
           spectral2.xyz * uSpectralGeometryWeights.z * spectralKeep2;
-        horizontal += spectralDisplacement.xz * uSpectralGeometryStrength;
-        height += spectralDisplacement.y * uSpectralGeometryStrength;
+        float spectralContactFade = smoothstep(
+          uSpectralContactBand.x,
+          uSpectralContactBand.y,
+          distance(worldXZ, uFocusXZ)
+        );
+        horizontal += spectralDisplacement.xz * uSpectralGeometryStrength * spectralContactFade;
+        height += spectralDisplacement.y * uSpectralGeometryStrength * spectralContactFade;
         vec3 p = position; p.x += horizontal.x; p.y += horizontal.y; p.z = height;
         vec4 world = modelMatrix * vec4(p, 1.0); vWorld = world.xyz; vOceanXZ = worldXZ;
         vSpectralHistory = min(
@@ -136,7 +152,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
           mix(1.0, spectral1.a, spectralKeep1)
         );
         vNormalW = normalize(normalMatrix * vec3(-gradient.x, -gradient.y, 1.0));
-        vCrest = crest; vSlope = length(gradient); vHeight = height;
+        vCrest = crest; vSlope = length(gradient); vHeight = height; vSpectralContactFade = spectralContactFade;
         gl_Position = projectionMatrix * viewMatrix * world;
       }`,
     fragmentShader: `
@@ -151,7 +167,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
       uniform sampler2D uSpectralDetail; uniform vec3 uSpectralPatchLengths; uniform vec3 uSpectralCascadeWeights; uniform float uSpectralTexelSize;
       uniform float uSpectralNormalStrength; uniform float uSpectralActive; uniform float uSpectralFoamThreshold; uniform float uSpectralFoamScale;
       varying vec3 vWorld; varying vec3 vNormalW; varying vec2 vOceanXZ;
-      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory;
+      varying float vCrest; varying float vSlope; varying float vHeight; varying float vSpectralHistory; varying float vSpectralContactFade;
 
       float hash21(vec2 p) {
         p = fract(p * vec2(123.34, 456.21));
@@ -386,6 +402,12 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
           return;
         }
 
+        if (uDebugMode == 14) {
+          float transition = 1.0 - abs(vSpectralContactFade * 2.0 - 1.0);
+          gl_FragColor = vec4(vSpectralContactFade, transition, 1.0 - vSpectralContactFade, 1.0);
+          return;
+        }
+
         float foamEnabled = uDebugMode == 7 ? 0.0 : 1.0;
         vec3 foamColour = mix(uHorizon, vec3(.94, .985, 1.0), .62);
         float foamLight = .55 + .55 * noL;
@@ -437,7 +459,7 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
 
   function setDebugMode(mode = 'final') {
     const value = typeof mode === 'number' ? mode : OCEAN_DEBUG_MODES[mode] ?? OCEAN_DEBUG_MODES.final;
-    uniforms.uDebugMode.value = THREE.MathUtils.clamp(Math.round(value), 0, 13);
+    uniforms.uDebugMode.value = THREE.MathUtils.clamp(Math.round(value), 0, 14);
     return uniforms.uDebugMode.value;
   }
 
@@ -455,7 +477,9 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     uniforms.uSpectralDerivatives1.value = cascades[1].derivatives.texture;
     uniforms.uSpectralDerivatives2.value = cascades[2].derivatives.texture;
     uniforms.uSpectralActive.value = spectral.active ? 1 : 0;
-    uniforms.uTime.value = time; mesh.position.x = Math.round(focusPosition.x / 100) * 100; mesh.position.z = Math.round(focusPosition.z / 100) * 100;
+    uniforms.uTime.value = time;
+    uniforms.uFocusXZ.value.set(focusPosition.x, focusPosition.z);
+    mesh.position.x = Math.round(focusPosition.x / 100) * 100; mesh.position.z = Math.round(focusPosition.z / 100) * 100;
     waves.forEach((wave, index) => {
       wave.currentAmplitude = THREE.MathUtils.damp(wave.currentAmplitude, wave.targetAmplitude, .65, dt);
       const [x, z] = wave.direction; waveUniforms[index].set(x, z, wave.currentAmplitude, wave.wavelength);
@@ -496,7 +520,14 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
   setQuality(qualityName);
   return {
     mesh, material, uniforms, waves, spectral, update, sampleOceanSurface, setWaveIntensity, setQuality, setDebugMode,
-    get diagnostics() { return { ...spectral.diagnostics, quality: currentQuality, debugMode: uniforms.uDebugMode.value }; },
+    get diagnostics() {
+      return {
+        ...spectral.diagnostics,
+        quality: currentQuality,
+        debugMode: uniforms.uDebugMode.value,
+        spectralContactBandMetres: [SPECTRAL_CONTACT_BAND_METRES.inner, SPECTRAL_CONTACT_BAND_METRES.outer]
+      };
+    },
     dispose() { geometry.dispose(); material.dispose(); spectral.dispose(); scene.remove(mesh); }
   };
 }

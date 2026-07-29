@@ -24,6 +24,7 @@
   ],
   "invariants": [
     "The CPU Gerstner sampler remains the sole owner of buoyancy and boat-water contact.",
+    "Spectral geometry is zero within four metres of the boat and returns with a smooth four-to-six metre transition while spectral normals and optics remain active.",
     "The spectral ocean uses a deterministic seed of 481516.",
     "No ocean mesh edge is visible at the horizon.",
     "No regular parallel comb or moire bands appear in chase or oblique cinematic views.",
