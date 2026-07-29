@@ -55,7 +55,7 @@ export function createSpectralLayer(renderer, qualityName = 'high') {
         boundaryFactor: 6,
         gravity: 9.81,
         depth: 500,
-        choppiness: 1.05,
+        choppiness: 1.35,
         foamRecovery: .4,
         amplitude: 1,
         seed: 481516,

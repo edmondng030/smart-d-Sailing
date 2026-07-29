@@ -1,19 +1,19 @@
 export const METRES_PER_UNIT = 1;
 
 export const QUALITY_PRESETS = {
-  low: { pixelRatio: 1, oceanSegments: 56, waveCount: 2, shadowSize: 1024, foamParticles: 80, cloudCount: 10 },
-  medium: { pixelRatio: 1.25, oceanSegments: 96, waveCount: 4, shadowSize: 1024, foamParticles: 150, cloudCount: 18 },
-  high: { pixelRatio: 1.6, oceanSegments: 144, waveCount: 6, shadowSize: 2048, foamParticles: 260, cloudCount: 28 },
-  ultra: { pixelRatio: 2, oceanSegments: 192, waveCount: 6, shadowSize: 2048, foamParticles: 380, cloudCount: 40 }
+  low: { pixelRatio: 1, oceanSegments: 72, waveCount: 2, geometryWaveCount: 3, shadowSize: 1024, foamParticles: 80, cloudCount: 10 },
+  medium: { pixelRatio: 1.25, oceanSegments: 128, waveCount: 4, geometryWaveCount: 4, shadowSize: 1024, foamParticles: 150, cloudCount: 18 },
+  high: { pixelRatio: 1.6, oceanSegments: 192, waveCount: 6, geometryWaveCount: 5, shadowSize: 2048, foamParticles: 260, cloudCount: 28 },
+  ultra: { pixelRatio: 2, oceanSegments: 256, waveCount: 6, geometryWaveCount: 5, shadowSize: 2048, foamParticles: 380, cloudCount: 40 }
 };
 
 export const BASE_WAVES = [
-  { direction: [1, .25], steepness: .18, wavelength: 18, amplitude: .34, speed: .75 },
-  { direction: [.72, .68], steepness: .12, wavelength: 8, amplitude: .16, speed: 1.05 },
-  { direction: [-.3, 1], steepness: .08, wavelength: 3.5, amplitude: .06, speed: 1.55 },
-  { direction: [.9, -.45], steepness: .05, wavelength: 1.4, amplitude: .025, speed: 2.1 },
-  { direction: [-.7, -.25], steepness: .04, wavelength: .8, amplitude: .012, speed: 2.8 },
-  { direction: [.2, -.95], steepness: .03, wavelength: .42, amplitude: .006, speed: 3.4 }
+  { direction: [1, .18], steepness: .24, wavelength: 18, amplitude: .62, speed: 1.15 },
+  { direction: [.45, .89], steepness: .2, wavelength: 8, amplitude: .32, speed: 1.6 },
+  { direction: [-.62, .78], steepness: .14, wavelength: 3.5, amplitude: .16, speed: 2.2 },
+  { direction: [.92, -.38], steepness: .12, wavelength: 2.2, amplitude: .1, speed: 2.8 },
+  { direction: [-.75, -.28], steepness: .08, wavelength: 1.7, amplitude: .055, speed: 3.6 },
+  { direction: [.14, -.99], steepness: .04, wavelength: .9, amplitude: .015, speed: 4.5 }
 ];
 
 export const WEATHER_PRESETS = {

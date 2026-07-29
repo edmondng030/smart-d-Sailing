@@ -27,3 +27,12 @@ an MIT-licensed Three.js ocean implementation by Mohamed Achref El Ouafi.
 
 No OceanThreejs source file is vendored into this project. The integration is a
 project-native implementation of the cited optical principles.
+
+## Official Three.js Water example
+
+The official [Three.js ocean shader example](https://threejs.org/examples/webgl_shaders_ocean.html)
+is also retained as a reference for layered moving normal samples, Fresnel reflection,
+sun glitter and sky-environment continuity. Its `Water` helper is intentionally a flat
+reflective surface, so it is not used as the source of wave height. Resolved geometry
+comes from all three local spectral cascades plus the first five analytic waves shared
+with the CPU buoyancy sampler.
