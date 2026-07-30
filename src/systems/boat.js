@@ -132,6 +132,80 @@ function createRopeCoil(material){
   for(let i=0;i<4;i++){const loop=new THREE.Mesh(new THREE.TorusGeometry(.12-i*.018,.01,6,28),material);loop.rotation.x=Math.PI/2;loop.position.y=i*.006;group.add(loop)}return group;
 }
 
+const HELM_DIMENSIONS={
+  outerRadius:.31,
+  rimRadius:.027,
+  hubRadius:.068,
+  hubDepth:.13,
+  spokeCount:8,
+  spokeRadius:.013,
+  handleReach:.105,
+  handleRadius:.019,
+  position:new THREE.Vector3(0,1.04,1.05),
+};
+
+function cylinderBetween(start,end,radius,material,segments=10,radiusEnd=radius){
+  const direction=new THREE.Vector3().subVectors(end,start);
+  const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radiusEnd,radius,direction.length(),segments),material);
+  mesh.position.copy(start).add(end).multiplyScalar(.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());
+  mesh.castShadow=true;
+  mesh.receiveShadow=true;
+  return mesh;
+}
+
+function createShipWheel(woodMaterial,metalMaterial){
+  const wheel=new THREE.Group();
+  wheel.name='HelmWheel';
+  const {outerRadius,rimRadius,hubRadius,hubDepth,spokeCount,spokeRadius,handleReach,handleRadius}=HELM_DIMENSIONS;
+
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(outerRadius,rimRadius,12,48),woodMaterial);
+  rim.rotation.y=Math.PI/2;
+  rim.castShadow=rim.receiveShadow=true;
+  wheel.add(rim);
+
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(hubRadius,hubRadius*1.08,hubDepth,16),woodMaterial);
+  hub.rotation.z=Math.PI/2;
+  hub.castShadow=hub.receiveShadow=true;
+  wheel.add(hub);
+
+  const axle=new THREE.Mesh(new THREE.CylinderGeometry(.027,.027,hubDepth+.15,12),metalMaterial);
+  axle.rotation.z=Math.PI/2;
+  axle.castShadow=true;
+  wheel.add(axle);
+
+  const hubCapGeometry=new THREE.CylinderGeometry(.037,.037,.012,16);
+  for(const side of [-1,1]){
+    const cap=new THREE.Mesh(hubCapGeometry,metalMaterial);
+    cap.rotation.z=Math.PI/2;
+    cap.position.x=side*(hubDepth*.5+.007);
+    cap.castShadow=true;
+    wheel.add(cap);
+  }
+
+  for(let i=0;i<spokeCount;i++){
+    const angle=i*Math.PI*2/spokeCount;
+    const radial=(radius,x=0)=>new THREE.Vector3(x,Math.cos(angle)*radius,Math.sin(angle)*radius);
+    wheel.add(cylinderBetween(radial(hubRadius*.72),radial(outerRadius+handleReach*.36),spokeRadius,woodMaterial,10,spokeRadius*.82));
+    wheel.add(cylinderBetween(radial(outerRadius+handleReach*.22),radial(outerRadius+handleReach),handleRadius*.72,woodMaterial,10,handleRadius));
+
+    const grip=new THREE.Mesh(new THREE.SphereGeometry(handleRadius,10,8),woodMaterial);
+    grip.position.copy(radial(outerRadius+handleReach));
+    grip.scale.set(1,1.28,1.28);
+    grip.castShadow=true;
+    wheel.add(grip);
+
+    if(i%2===0){
+      const collar=new THREE.Mesh(new THREE.BoxGeometry(.064,.042,.018),metalMaterial);
+      collar.position.copy(radial(outerRadius));
+      collar.rotation.x=angle;
+      collar.castShadow=true;
+      wheel.add(collar);
+    }
+  }
+  return wheel;
+}
+
 function createDetailedVisual(renderer){
   const root=new THREE.Group();root.name='VisualHull';
   const wood=makeTexture('wood',renderer),woodHeight=makeTexture('wood-height',renderer),woodRoughness=makeTexture('wood-roughness',renderer),deckTexture=makeTexture('deck',renderer),deckHeight=makeTexture('deck-height',renderer),deckRoughness=makeTexture('deck-roughness',renderer);
@@ -167,8 +241,11 @@ function createDetailedVisual(renderer){
 
   const steering=new THREE.Group();steering.name='Steering';root.add(steering);
   const rudder=new THREE.Mesh(createRudderGeometry(),new THREE.MeshPhysicalMaterial({map:wood,color:'#67432c',roughness:.6}));rudder.name='Rudder';rudder.position.set(0,.04,1.91);steering.add(rudder);
-  const metal=new THREE.MeshStandardMaterial({color:'#b48438',metalness:.88,roughness:.3});
-  const wheel=new THREE.Group();wheel.name='Wheel';const rim=new THREE.Mesh(new THREE.TorusGeometry(.31,.026,8,28),gunwaleMat);rim.rotation.y=Math.PI/2;wheel.add(rim);for(let i=0;i<8;i++){const spoke=new THREE.Mesh(new THREE.CylinderGeometry(.009,.014,.62,6),gunwaleMat);spoke.rotation.z=Math.PI/2;spoke.rotation.x=i*Math.PI/4;wheel.add(spoke)}wheel.position.set(.48,.88,.8);steering.add(wheel);
+  const metal=new THREE.MeshStandardMaterial({color:'#b48438',metalness:.78,roughness:.32});
+  const helmPedestal=new THREE.Group();helmPedestal.name='HelmPedestal';helmPedestal.position.copy(HELM_DIMENSIONS.position);steering.add(helmPedestal);
+  const pedestalPost=new THREE.Mesh(new THREE.CylinderGeometry(.047,.065,.39,12),gunwaleMat);pedestalPost.position.y=-.255;pedestalPost.castShadow=pedestalPost.receiveShadow=true;helmPedestal.add(pedestalPost);
+  const bearing=new THREE.Mesh(new THREE.CylinderGeometry(.052,.052,.28,14),metal);bearing.rotation.z=Math.PI/2;bearing.castShadow=true;helmPedestal.add(bearing);
+  const wheel=createShipWheel(gunwaleMat,metal);helmPedestal.add(wheel);
 
   const accessories=new THREE.Group();accessories.name='Accessories';root.add(accessories);
   for(let i=0;i<4;i++){const cleat=new THREE.Mesh(new THREE.CapsuleGeometry(.025,.15,3,6),metal);cleat.rotation.z=Math.PI/2;cleat.position.set(i<2?-.62:.62,.62,i%2?-1.15:.72);cleat.name='Cleat';accessories.add(cleat)}
@@ -182,7 +259,7 @@ function createDetailedVisual(renderer){
   const flag=createClothSail(.56,.27,renderer);flag.name='Flag';flag.rotation.y=-Math.PI/2;flag.position.set(0,3.34,-.2);accessories.add(flag);
 
   root.traverse(node=>{if(node.name)node.userData.sculptComponent={id:node.name,pickable:true,destructionGroup:node.parent?.name||'VisualHull'}});
-  root.userData={hullMaterial,lowerMaterial,sail,jib,rudder,flag,wetness:0,sculptRuntime:{rootNode:'VisualHull',nodes:['OuterHull','Deck','Cabin','MastSystem','Steering','Accessories'],sockets:{mastBase:[0,.48,-.22],bowRig:[0,.58,-2.04],sternRig:[0,.58,2],rudderStock:[0,.55,1.83]},colliders:['hull-convex','keel-box','mast-capsule'],picking:{enabled:true},explode:{groups:['Hull','Rig','Deck','Accessories']}}};
+  root.userData={hullMaterial,lowerMaterial,sail,jib,rudder,wheel,flag,wetness:0,sculptRuntime:{rootNode:'VisualHull',nodes:['OuterHull','Deck','Cabin','MastSystem','Steering','Accessories'],sockets:{mastBase:[0,.48,-.22],bowRig:[0,.58,-2.04],sternRig:[0,.58,2],rudderStock:[0,.55,1.83],helmAxle:[HELM_DIMENSIONS.position.x,HELM_DIMENSIONS.position.y,HELM_DIMENSIONS.position.z]},colliders:['hull-convex','keel-box','mast-capsule'],picking:{enabled:true},explode:{groups:['Hull','Rig','Deck','Accessories']}}};
   return root;
 }
 
@@ -252,7 +329,7 @@ export function createBoatPhysics(RAPIER,world,boatRoot,ocean){
     while(accumulator>=1/60&&steps<4){fixedStep(environment,time);accumulator-=1/60;steps++}
     const p=body.translation(),r=body.rotation();boatRoot.position.set(p.x,p.y,p.z);boatRoot.quaternion.set(r.x,r.y,r.z,r.w);
     const high=boatRoot.userData.high;deformCloth(high.userData.sail,environment,time,sailTrim);deformCloth(high.userData.jib,environment,time,sailTrim*.7);deformCloth(high.userData.flag,environment,time,.55);
-    high.userData.rudder.rotation.y=rudderInput*.55;high.userData.wetness=THREE.MathUtils.damp(high.userData.wetness,environment.wetness,1.2,dt);high.userData.lowerMaterial.roughness=THREE.MathUtils.lerp(.52,.28,high.userData.wetness);
+    high.userData.rudder.rotation.y=rudderInput*.55;high.userData.wheel.rotation.x=-rudderInput*1.1;high.userData.wetness=THREE.MathUtils.damp(high.userData.wetness,environment.wetness,1.2,dt);high.userData.lowerMaterial.roughness=THREE.MathUtils.lerp(.52,.28,high.userData.wetness);
     return {speedKnots:Math.abs(forwardSpeed)*1.94384,forwardSpeed,position:boatRoot.position,quaternion:boatRoot.quaternion};
   }
   return {body,collider,parameters,buoyancyPoints:BUOYANCY_POINTS,update,setVelocity(z){
