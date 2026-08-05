@@ -1,0 +1,31 @@
+{
+  "id": "maritime-atmosphere-v1",
+  "subject": "Analytic maritime sky, solar disc and atmosphere-aware lighting",
+  "identity": [
+    "A clean blue zenith transitions into a bright aerosol horizon without a hard colour band.",
+    "The sun remains a compact disc with a restrained forward-scattering halo rather than a nearby sphere.",
+    "Low sun warms the direct light, haze, clouds and ocean reflection together.",
+    "Cloud and fog presets change aerosol density without breaking the shared sun direction."
+  ],
+  "cameraEnvelope": {"near":"deck","design":"chase","far":"cinematic","failureSensitive":"oblique horizon"},
+  "lightingEnvelope": ["clear 14:30","cloudy 15:00","sunset 18:15","fog 08:30","night 23:00"],
+  "invariants": [
+    "Sky scattering, directional light, sun sprites and ocean reflection share one sun direction.",
+    "The solar angular radius is 0.004675 radians and the disc is positioned behind scene geometry.",
+    "The sky owns tone-mapped radiance while the display-referred solar sprites own no bloom dependency.",
+    "Atmosphere gradients include low-amplitude display dithering to resist visible banding.",
+    "Weather transitions are damped and deterministic cloud placement uses a fixed seed.",
+    "One Three.js world unit remains one metre for scene and fog scale."
+  ],
+  "performanceBudget": {"designViewport":[1280,720],"additionalDrawCalls":2,"additionalRenderTargets":0,"highQualityFrameMs":33.3},
+  "inspectionUrls": [
+    "?qa&camera=design&weather=clear&hour=14.5",
+    "?qa&camera=design&weather=sunset&hour=18.25",
+    "?qa&camera=cinematic&weather=fog&hour=8.5"
+  ],
+  "allowedDivergences": [
+    "The sailing camera remains near sea level, so a lightweight analytic Preetham atmosphere is used instead of an orbital LUT stack.",
+    "A depth-aware aerial-perspective post pass is deferred; the bounded scene uses shared horizon-coloured exponential fog.",
+    "No lens-flare or bloom pass is required for sun readability."
+  ]
+}

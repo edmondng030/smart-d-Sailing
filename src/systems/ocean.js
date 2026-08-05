@@ -488,11 +488,10 @@ export function createOceanSystem(scene, renderer, qualityName = 'high') {
     const blend = 1 - Math.exp(-dt * .6);
     uniforms.uDeep.value.lerp(environment.deep, blend); uniforms.uMid.value.lerp(environment.mid, blend);
     uniforms.uShallow.value.lerp(environment.shallow, blend); uniforms.uHorizon.value.lerp(environment.horizon, blend);
-    uniforms.uSky.value.lerp(environment.sky, blend); uniforms.uSunColour.value.lerp(environment.sun, blend);
-    const phi=THREE.MathUtils.degToRad(90-environment.sunElevation),theta=THREE.MathUtils.degToRad(environment.sunAzimuth);
-    tmpSunDirection.setFromSphericalCoords(1,phi,theta);uniforms.uSunDirection.value.lerp(tmpSunDirection,blend).normalize();
-    const daylight = Math.max(0, Math.sin(THREE.MathUtils.degToRad(environment.sunElevation)));
-    uniforms.uSunIntensity.value = THREE.MathUtils.damp(uniforms.uSunIntensity.value, .18 + daylight * 1.42, .8, dt);
+    uniforms.uSky.value.lerp(environment.sky, blend);
+    tmpSunDirection.copy(environment.sunDirection);uniforms.uSunDirection.value.lerp(tmpSunDirection,blend).normalize();
+    uniforms.uSunColour.value.lerp(environment.sunRadiance,blend);
+    uniforms.uSunIntensity.value = THREE.MathUtils.damp(uniforms.uSunIntensity.value, .12 + environment.sunIntensity * 1.5, .8, dt);
     uniforms.uWindDirection.value.set(environment.windDirection.x,environment.windDirection.z).normalize();
     uniforms.uWaveEnergy.value=THREE.MathUtils.damp(uniforms.uWaveEnergy.value,environment.waveIntensity,.8,dt);
     uniforms.uFoamThreshold.value = THREE.MathUtils.damp(uniforms.uFoamThreshold.value, environment.foam, .8, dt);
