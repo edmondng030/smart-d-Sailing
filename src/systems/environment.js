@@ -5,7 +5,7 @@ import { WEATHER_PRESETS, QUALITY_PRESETS } from '../config.js';
 const colour = hex => new THREE.Color(hex);
 const SUN_DISTANCE = 3400;
 const SUN_ANGULAR_RADIUS = .004675;
-const SUN_VISUAL_RADIUS = .0135;
+const SUN_VISUAL_RADIUS = .021;
 const SKY_SUN_DISTANCE = 450000;
 const DAY_SUN = colour('#fff7df');
 const LOW_SUN = colour('#ff7b48');
@@ -50,8 +50,8 @@ function createSunVisual() {
     [.94, 'rgba(255,236,190,.98)'], [1, 'rgba(255,220,160,0)']
   ]);
   const haloTexture = createRadialTexture([
-    [0, 'rgba(255,245,211,.95)'], [.08, 'rgba(255,224,155,.42)'],
-    [.28, 'rgba(255,180,105,.12)'], [1, 'rgba(255,160,80,0)']
+    [0, 'rgba(255,255,255,.98)'], [.09, 'rgba(255,255,245,.58)'],
+    [.32, 'rgba(210,235,255,.16)'], [1, 'rgba(190,225,255,0)']
   ]);
   const coreMaterial = new THREE.SpriteMaterial({
     map:coreTexture, color:'#fff7df', transparent:true, depthWrite:false,
@@ -63,7 +63,7 @@ function createSunVisual() {
     blending:THREE.AdditiveBlending
   });
   const group = new THREE.Group(); group.name = 'AtmosphericSun';
-  const halo = new THREE.Sprite(haloMaterial); halo.name = 'SunHalo'; halo.scale.setScalar(420); halo.renderOrder = -8;
+  const halo = new THREE.Sprite(haloMaterial); halo.name = 'SunHalo'; halo.scale.setScalar(540); halo.renderOrder = -8;
   const core = new THREE.Sprite(coreMaterial); core.name = 'SunDisc';
   core.scale.setScalar(2 * Math.tan(SUN_VISUAL_RADIUS) * SUN_DISTANCE); core.renderOrder = -7;
   group.add(halo, core);
@@ -81,7 +81,7 @@ export function createEnvironmentSystem(scene, renderer) {
   sky.material.fragmentShader = sky.material.fragmentShader
     .replace('uniform vec3 up;', 'uniform vec3 up; uniform vec3 sunTint; uniform float sunDiscIntensity; uniform float skyRadianceScale; uniform vec3 clearSkyColor; uniform float clearSkyAmount;')
     .replace('L0 += ( vSunE * 19000.0 * Fex ) * sundisk;', 'L0 += sunTint * (vSunE * sunDiscIntensity * Fex) * sundisk;')
-    .replace('gl_FragColor = vec4( retColor, 1.0 );', 'float skyHeight = clamp(direction.y, 0.0, 1.0);\n       vec3 blueSky = mix(vec3(.62, .84, 1.18), clearSkyColor * 1.65, pow(skyHeight, .6));\n       float sunProtection = 1.0 - smoothstep(.97, .99992, cosTheta);\n       float blueGrade = clearSkyAmount * smoothstep(-.04, .36, direction.y) * sunProtection;\n       retColor = mix(retColor, max(retColor, blueSky * .58), blueGrade * .8);\n       gl_FragColor = vec4( retColor, 1.0 );')
+    .replace('gl_FragColor = vec4( retColor, 1.0 );', 'float skyHeight = clamp(direction.y, 0.0, 1.0);\n       vec3 blueSky = mix(vec3(.43, .82, 1.08), clearSkyColor * 1.38, pow(skyHeight, .56));\n       float sunProtection = 1.0 - smoothstep(.97, .99992, cosTheta);\n       float blueGrade = clearSkyAmount * smoothstep(-.05, .32, direction.y) * sunProtection;\n       retColor = mix(retColor, blueSky, blueGrade * .76);\n       gl_FragColor = vec4( retColor, 1.0 );')
     .replace('( Lin + L0 ) * 0.04', '( Lin + L0 ) * skyRadianceScale')
     .replace(
       '#include <colorspace_fragment>',
@@ -134,7 +134,7 @@ export function createEnvironmentSystem(scene, renderer) {
   for(let i=0;i<18;i++){
     const sprite=new THREE.Sprite(highCloudMaterial);
     sprite.position.set((random()-.5)*650,100+random()*35,-80-random()*450);
-    sprite.scale.set(90+random()*130,24+random()*35,1); highClouds.add(sprite);
+    sprite.scale.set(115+random()*165,8+random()*16,1); highClouds.add(sprite);
   }
   for(let i=0;i<16;i++){
     const group=new THREE.Group(); group.userData.phase=random()*Math.PI*2;
@@ -217,9 +217,9 @@ export function createEnvironmentSystem(scene, renderer) {
     sunLight.color.copy(state.sunRadiance);
     sunLight.intensity=daylight*(.25+altitudeLight*3.65)*(1-state.cloudCoverage*.52);
     sunVisual.group.position.copy(focusPosition).addScaledVector(sunDirection,SUN_DISTANCE);
-    sunVisual.core.material.color.copy(state.sunRadiance); sunVisual.core.material.opacity=daylight*(1-state.cloudCoverage*.62);
-    sunVisual.halo.material.color.copy(state.sunRadiance).lerp(LOW_SUN,horizonWeight*.42);
-    sunVisual.halo.material.opacity=daylight*(.18+horizonWeight*.25)*(1-state.cloudCoverage*.55);
+    sunVisual.core.material.color.copy(WHITE).lerp(LOW_SUN,horizonWeight*.16); sunVisual.core.material.opacity=daylight*(1-state.cloudCoverage*.48);
+    sunVisual.halo.material.color.copy(WHITE).lerp(LOW_SUN,horizonWeight*.24);
+    sunVisual.halo.material.opacity=daylight*(.27+horizonWeight*.2)*(1-state.cloudCoverage*.45);
 
     hemisphere.color.copy(state.sky).lerp(state.horizon,horizonWeight*.12);
     hemisphere.groundColor.copy(state.deep);hemisphere.intensity=.48+daylight*altitudeLight*1.52;
