@@ -17,7 +17,7 @@ export const BASE_WAVES = [
 ];
 
 export const WEATHER_PRESETS = {
-  clear: { sky:'#8fc6df', horizon:'#c9dde0', sun:'#fff0c0', deep:'#082f4f', mid:'#0f6681', shallow:'#3ca6a0', exposure:1, fog:.0007, windSpeed:6, waveIntensity:1, cloudCoverage:.25, rain:0, wetness:.15, foam:.48 },
+  clear: { sky:'#4c9fd6', horizon:'#b9e2ef', sun:'#fff0c0', deep:'#063457', mid:'#0d7393', shallow:'#49b6ba', exposure:1, fog:.0007, windSpeed:6, waveIntensity:1, cloudCoverage:.25, rain:0, wetness:.15, foam:.48 },
   cloudy: { sky:'#7f9faa', horizon:'#aebfc1', sun:'#d9ddd5', deep:'#123947', mid:'#376a72', shallow:'#65918c', exposure:.72, fog:.0012, windSpeed:8, waveIntensity:1.18, cloudCoverage:.68, rain:0, wetness:.3, foam:.44 },
   sunset: { sky:'#c87867', horizon:'#e6b18a', sun:'#ffae5d', deep:'#183e56', mid:'#8b5b61', shallow:'#be7769', exposure:.85, fog:.0011, windSpeed:5, waveIntensity:.9, cloudCoverage:.35, rain:0, wetness:.12, foam:.5 },
   fog: { sky:'#aebfc0', horizon:'#c6ceca', sun:'#e4deca', deep:'#315762', mid:'#63858a', shallow:'#8aa5a0', exposure:.72, fog:.0042, windSpeed:3, waveIntensity:.65, cloudCoverage:.82, rain:.06, wetness:.5, foam:.52 },

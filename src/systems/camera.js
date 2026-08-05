@@ -54,6 +54,17 @@ export function createFollowCamera(camera) {
     return bookmark;
   }
 
+  function resume() {
+    bookmark = null;
+    frozenPose = null;
+    transition = {
+      elapsed: 0,
+      duration: .75,
+      startPosition: camera.position.clone(),
+      startQuaternion: camera.quaternion.clone(),
+      startFov: camera.fov
+    };
+  }
   function addImpact(amount) {
     shake = Math.max(shake, amount);
   }
@@ -147,7 +158,7 @@ export function createFollowCamera(camera) {
   }
 
   return {
-    update, setMode, setBookmark, addImpact,
+    update, setMode, setBookmark, resume, addImpact,
     get mode() { return mode; },
     get diagnostics() {
       const config = CAMERA_MODES[mode];

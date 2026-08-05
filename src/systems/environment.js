@@ -187,11 +187,14 @@ export function createEnvironmentSystem(scene, renderer) {
     const altitudeLight=Math.max(0,Math.sin(THREE.MathUtils.degToRad(elevation)));
     const horizonWeight=1-smoothstep(7,38,elevation);
     const haze=THREE.MathUtils.clamp(state.fogDensity/.0042,0,1);
-    const aerosol=Math.max(state.cloudCoverage*.72,haze*.9,horizonWeight*.42);
-    const targetTurbidity=THREE.MathUtils.lerp(3.8,13.5,aerosol);
-    const targetRayleigh=THREE.MathUtils.lerp(2.7,1.35,state.cloudCoverage*.62);
-    const targetMie=THREE.MathUtils.lerp(.0028,.0125,aerosol);
-    const targetG=THREE.MathUtils.lerp(.76,.9,Math.max(horizonWeight*.72,state.cloudCoverage*.38));
+    const clearConditions=state.preset==='clear';
+    const aerosol=clearConditions
+      ? Math.max(state.cloudCoverage*.42,haze*.6,horizonWeight*.28)
+      : Math.max(state.cloudCoverage*.72,haze*.9,horizonWeight*.42);
+    const targetTurbidity=THREE.MathUtils.lerp(clearConditions?2.6:3.8,13.5,aerosol);
+    const targetRayleigh=THREE.MathUtils.lerp(clearConditions?3.45:2.7,1.35,state.cloudCoverage*.62);
+    const targetMie=THREE.MathUtils.lerp(clearConditions ? .0015 : .0028,.0125,aerosol);
+    const targetG=THREE.MathUtils.lerp(clearConditions ? .72 : .76,.9,Math.max(horizonWeight*.72,state.cloudCoverage*.38));
     skyUniforms.turbidity.value=THREE.MathUtils.damp(skyUniforms.turbidity.value,targetTurbidity,1.1,dt);
     skyUniforms.rayleigh.value=THREE.MathUtils.damp(skyUniforms.rayleigh.value,targetRayleigh,1.1,dt);
     skyUniforms.mieCoefficient.value=THREE.MathUtils.damp(skyUniforms.mieCoefficient.value,targetMie,1.1,dt);
@@ -201,7 +204,8 @@ export function createEnvironmentSystem(scene, renderer) {
     state.sunRadiance.copy(DAY_SUN).lerp(LOW_SUN,horizonWeight*.88).lerp(OVERCAST_SUN,state.cloudCoverage*.38).lerp(state.sun,.28);
     skyUniforms.sunTint.value.copy(state.sunRadiance);
     skyUniforms.sunDiscIntensity.value=THREE.MathUtils.damp(skyUniforms.sunDiscIntensity.value,4200*(1-state.cloudCoverage*.55),1.1,dt);
-    skyUniforms.skyRadianceScale.value=THREE.MathUtils.damp(skyUniforms.skyRadianceScale.value,.021+state.cloudCoverage*.003+horizonWeight*.001,1.1,dt);
+    const skyRadianceScale=clearConditions ? .024+state.cloudCoverage*.0015+horizonWeight*.001 : .021+state.cloudCoverage*.003+horizonWeight*.001;
+    skyUniforms.skyRadianceScale.value=THREE.MathUtils.damp(skyUniforms.skyRadianceScale.value,skyRadianceScale,1.1,dt);
     state.sunIntensity=daylight*(.2+.8*altitudeLight)*(1-state.cloudCoverage*.58);
     sunLight.position.copy(focusPosition).addScaledVector(sunDirection,55); sunLight.target.position.copy(focusPosition);
     sunLight.color.copy(state.sunRadiance);

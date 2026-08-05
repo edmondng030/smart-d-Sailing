@@ -128,3 +128,6 @@ html,body{width:100%;height:100%;overscroll-behavior:none}body{min-height:100svh
 }
 
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.free-view-btn.active{color:#f6cd72!important;border-color:#f2cc78!important;background:#1d5266e8!important;box-shadow:0 0 0 2px #f2cc7830,0 8px 24px #00172566}
+
+#app .screen{pointer-events:none}#app .screen button,#app .screen input,#app .screen select{pointer-events:auto}

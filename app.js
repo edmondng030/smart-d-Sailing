@@ -25,7 +25,7 @@ const weatherNames=['clear','cloudy','sunset','fog','night'];
 const savedHour=Number(savedPreferences.hour),savedWaveIntensity=Number(savedPreferences.waveIntensity);
 const requestedQuality=launchParams.get('quality');
 const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:(QUALITY_PRESETS[savedPreferences.quality]?savedPreferences.quality:chooseInitialQuality());
-const appState={mode:'menu',weather:weatherNames.includes(savedPreferences.weather)?savedPreferences.weather:'clear',hour:clamp(Number.isFinite(savedHour)?savedHour:14.5,0,23.5),waveIntensity:clamp(Number.isFinite(savedWaveIntensity)?savedWaveIntensity:1,.35,1.6),quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:savedPreferences.motion!==false,keys:new Set()};
+const appState={mode:'menu',weather:weatherNames.includes(savedPreferences.weather)?savedPreferences.weather:'clear',hour:clamp(Number.isFinite(savedHour)?savedHour:14.5,0,23.5),waveIntensity:clamp(Number.isFinite(savedWaveIntensity)?savedWaveIntensity:1,.35,1.6),quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,freeView:false,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:savedPreferences.motion!==false,keys:new Set()};
 
 const scene=new THREE.Scene();
 const camera=createCamera();
@@ -38,6 +38,11 @@ const physicsWorld=new RAPIER.World({x:0,y:-9.81,z:0});physicsWorld.timestep=1/6
 const boatPhysics=createBoatPhysics(RAPIER,physicsWorld,boatRoot,ocean);
 const wake=createWakeSystem(scene,ocean,appState.quality);
 const followCamera=createFollowCamera(camera);
+const freeViewControls=new OrbitControls(camera,renderer.domElement);
+freeViewControls.enabled=false;freeViewControls.enableDamping=true;freeViewControls.dampingFactor=.08;freeViewControls.enablePan=false;
+freeViewControls.minDistance=BOAT.length*1.05;freeViewControls.maxDistance=BOAT.length*9;
+freeViewControls.minPolarAngle=.09;freeViewControls.maxPolarAngle=Math.PI*.48;freeViewControls.enableKeys=false;
+const freeViewAnchor=new THREE.Vector3(),freeViewPreviousAnchor=new THREE.Vector3(),freeViewDelta=new THREE.Vector3();
 const audio=createAudioSystem();
 const debug=createDebugPanel(scene,boatRoot,boatPhysics,ocean,environment);
 const visualValidation=createVisualValidation({renderer,camera,ocean,followCamera});
@@ -47,6 +52,10 @@ const overlay=$('#overlay'),toast=$('#toast');
 function openModal(id){$$('.modal').forEach(modal=>modal.classList.remove('open'));const modal=$('#'+id);if(!modal)return;overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');modal.classList.add('open');if(id==='customize')requestAnimationFrame(initPreview);if(id==='settings')syncSettingsControls()}
 function closeModal(){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');$$('.modal').forEach(modal=>modal.classList.remove('open'))}
 function showToast(message){toast.textContent=message;toast.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove('show'),1800)}
+function syncFreeViewControls(){$$('[data-action="free-view"]').forEach(button=>{button.classList.toggle('active',appState.freeView);button.setAttribute('aria-pressed',String(appState.freeView))})}
+function updateFreeViewAnchor(){freeViewAnchor.copy(boatRoot.position);freeViewAnchor.y+=BOAT.length*.42}
+function setFreeView(enabled){const next=Boolean(enabled);if(next===appState.freeView)return;updateFreeViewAnchor();if(next){freeViewControls.target.copy(camera.userData.target||freeViewAnchor);freeViewPreviousAnchor.copy(freeViewAnchor);freeViewControls.enabled=true;freeViewControls.update()}else{freeViewControls.enabled=false;if(appState.mode==='game')followCamera.resume()}appState.freeView=next;syncFreeViewControls();showToast(next?'自由視角：拖曳旋轉、滾輪縮放':'已返回跟隨視角')}
+function updateFreeView(){updateFreeViewAnchor();freeViewDelta.subVectors(freeViewAnchor,freeViewPreviousAnchor);camera.position.add(freeViewDelta);freeViewControls.target.add(freeViewDelta);freeViewPreviousAnchor.copy(freeViewAnchor);freeViewControls.update()}
 function showScreen(id){$$('.screen').forEach(screen=>screen.classList.remove('active'));$('#'+id).classList.add('active');appState.mode=id}
 function applyBoatStyle(root=boatRoot){const high=root.userData.high;if(!high)return;const sailColours={classic:['#fff6df','#eee3cc'],navy:['#173b53','#274f67'],regatta:['#e4ad52','#f3e7d1']}[appState.sail];high.userData.sail.material.color.set(sailColours[0]);high.userData.jib.material.color.set(sailColours[1]);high.userData.hullMaterial.color.set(appState.hull)}
 
@@ -92,7 +101,8 @@ function handleAction(action,button){
   if(action==='continue'){showScreen('game');audio.start();audio.resume();showToast('已載入上次航程')}
   if(action==='home'){showScreen('menu')}
   if(action==='anchor'){appState.anchored=!appState.anchored;button.querySelector('span').textContent=appState.anchored?'起錨':'下錨';showToast(appState.anchored?'船隻已下錨':'重新揚帆')}
-  if(action==='camera'){appState.camera=followCamera.setMode(appState.camera+1);showToast(['跟隨視角','甲板視角','遠景視角'][appState.camera])}
+  if(action==='camera'){if(appState.freeView)setFreeView(false);appState.camera=followCamera.setMode(appState.camera+1);showToast(['跟隨視角','甲板視角','遠景視角','舷側視角'][appState.camera])}
+  if(action==='free-view')setFreeView(!appState.freeView);
 }
 $$('[data-action]').forEach(button=>button.addEventListener('click',()=>handleAction(button.dataset.action,button)));
 
@@ -109,7 +119,12 @@ bindTouchHold('[data-steer]','touchRudder','steer');
 bindTouchHold('[data-trim]','touchTrim','trim');
 addEventListener('blur',()=>{appState.touchRudder=0;appState.touchTrim=0});
 
-addEventListener('keydown',event=>{appState.keys.add(event.key.toLowerCase());if(event.key==='Escape'){if(overlay.classList.contains('open'))closeModal();else if(appState.mode==='game')handleAction('home')}if(appState.mode==='game'&&event.key.toLowerCase()==='m')openModal('map')});
+addEventListener('keydown',event=>{
+  const key=event.key.toLowerCase();appState.keys.add(key);
+  if(key==='v'&&!event.repeat&&!overlay.classList.contains('open')){event.preventDefault();setFreeView(!appState.freeView);return}
+  if(event.key==='Escape'){if(overlay.classList.contains('open'))closeModal();else if(appState.mode==='game')handleAction('home')}
+  if(appState.mode==='game'&&key==='m')openModal('map');
+});
 addEventListener('keyup',event=>appState.keys.delete(event.key.toLowerCase()));
 
 let previewRenderer=null,previewScene=null,previewCamera=null,previewBoat=null,previewControls=null;
@@ -139,7 +154,8 @@ function animate(){
   const env=environment.update(dt,simulationTime,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,simulationTime,env,boatRoot.position);
   const physics=boatPhysics.update(dt,simulationTime,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
   boatRoot.userData.lod.update(camera);worldSystem.update(dt,simulationTime,env);wake.update(dt,simulationTime,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update(simulationTime);
-  if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
+  if(appState.freeView){updateFreeView()}
+  else if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
   else{const portraitFrame=clamp((.82-camera.aspect)/.42,0,1);menuCameraPosition.set(BOAT.length*(2.3+portraitFrame*.72+Math.sin(elapsed*.08)*.57),BOAT.length*(1.33+portraitFrame*.28),BOAT.length*(2.53+portraitFrame*.78)).add(boatRoot.position);camera.position.lerp(menuCameraPosition,1-Math.exp(-dt*2));menuCameraTarget.copy(boatRoot.position);menuCameraTarget.y+=BOAT.length*(.39+portraitFrame*.05);camera.lookAt(menuCameraTarget)}
   renderer.render(scene,camera);
   visualValidation.endFrame();visualValidation.publish(elapsed);
@@ -154,4 +170,4 @@ function animate(){
   updateHud(physics);
 }
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY_PRESETS[appState.quality].pixelRatio));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const host=$('.boat-preview');previewRenderer.setSize(host.clientWidth,host.clientHeight,false);previewCamera.aspect=host.clientWidth/host.clientHeight;previewCamera.updateProjectionMatrix()}});
-applyBoatStyle();applyWeather(appState.weather,{announce:false});setSailingTime(appState.hour);setWaveIntensity(appState.waveIntensity);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
+applyBoatStyle();syncFreeViewControls();applyWeather(appState.weather,{announce:false});setSailingTime(appState.hour);setWaveIntensity(appState.waveIntensity);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
