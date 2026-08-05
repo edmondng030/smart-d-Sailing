@@ -5,6 +5,7 @@ import { WEATHER_PRESETS, QUALITY_PRESETS } from '../config.js';
 const colour = hex => new THREE.Color(hex);
 const SUN_DISTANCE = 3400;
 const SUN_ANGULAR_RADIUS = .004675;
+const SUN_VISUAL_RADIUS = .0135;
 const SKY_SUN_DISTANCE = 450000;
 const DAY_SUN = colour('#fff7df');
 const LOW_SUN = colour('#ff7b48');
@@ -57,14 +58,14 @@ function createSunVisual() {
     depthTest:true, fog:false, toneMapped:false
   });
   const haloMaterial = new THREE.SpriteMaterial({
-    map:haloTexture, color:'#ffc077', transparent:true, opacity:.22,
+    map:haloTexture, color:'#ffc077', transparent:true, opacity:.34,
     depthWrite:false, depthTest:true, fog:false, toneMapped:false,
     blending:THREE.AdditiveBlending
   });
   const group = new THREE.Group(); group.name = 'AtmosphericSun';
-  const halo = new THREE.Sprite(haloMaterial); halo.name = 'SunHalo'; halo.scale.setScalar(170); halo.renderOrder = -8;
+  const halo = new THREE.Sprite(haloMaterial); halo.name = 'SunHalo'; halo.scale.setScalar(420); halo.renderOrder = -8;
   const core = new THREE.Sprite(coreMaterial); core.name = 'SunDisc';
-  core.scale.setScalar(2 * Math.tan(SUN_ANGULAR_RADIUS) * SUN_DISTANCE); core.renderOrder = -7;
+  core.scale.setScalar(2 * Math.tan(SUN_VISUAL_RADIUS) * SUN_DISTANCE); core.renderOrder = -7;
   group.add(halo, core);
   return {group, core, halo, coreTexture, haloTexture};
 }
@@ -74,10 +75,13 @@ export function createEnvironmentSystem(scene, renderer) {
   const skyUniforms = sky.material.uniforms;
   skyUniforms.sunTint = {value:DAY_SUN.clone()};
   skyUniforms.sunDiscIntensity = {value:4200};
+  skyUniforms.clearSkyColor = {value:colour('#4c9fd6')};
+  skyUniforms.clearSkyAmount = {value:1};
   skyUniforms.skyRadianceScale = {value:.024};
   sky.material.fragmentShader = sky.material.fragmentShader
-    .replace('uniform vec3 up;', 'uniform vec3 up; uniform vec3 sunTint; uniform float sunDiscIntensity; uniform float skyRadianceScale;')
+    .replace('uniform vec3 up;', 'uniform vec3 up; uniform vec3 sunTint; uniform float sunDiscIntensity; uniform float skyRadianceScale; uniform vec3 clearSkyColor; uniform float clearSkyAmount;')
     .replace('L0 += ( vSunE * 19000.0 * Fex ) * sundisk;', 'L0 += sunTint * (vSunE * sunDiscIntensity * Fex) * sundisk;')
+    .replace('gl_FragColor = vec4( retColor, 1.0 );', 'float skyHeight = clamp(direction.y, 0.0, 1.0);\n       vec3 blueSky = mix(vec3(.62, .84, 1.18), clearSkyColor * 1.65, pow(skyHeight, .6));\n       float sunProtection = 1.0 - smoothstep(.97, .99992, cosTheta);\n       float blueGrade = clearSkyAmount * smoothstep(-.04, .36, direction.y) * sunProtection;\n       retColor = mix(retColor, max(retColor, blueSky * .58), blueGrade * .8);\n       gl_FragColor = vec4( retColor, 1.0 );')
     .replace('( Lin + L0 ) * 0.04', '( Lin + L0 ) * skyRadianceScale')
     .replace(
       '#include <colorspace_fragment>',
@@ -157,9 +161,9 @@ export function createEnvironmentSystem(scene, renderer) {
     const resolvedName = lockedWeather && WEATHER_PRESETS[lockedWeather] ? lockedWeather : name;
     const preset=WEATHER_PRESETS[resolvedName]||WEATHER_PRESETS.clear; target.preset=resolvedName;
     target.sky.set(preset.sky);target.horizon.set(preset.horizon);target.sun.set(preset.sun);target.deep.set(preset.deep);target.mid.set(preset.mid);target.shallow.set(preset.shallow);
-    const exposureScale={clear:.88,cloudy:.84,sunset:.72,fog:.82,night:1}[resolvedName]||1;
+    const exposureScale={clear:1.02,cloudy:.84,sunset:.72,fog:.82,night:1}[resolvedName]||1;
     target.exposure=preset.exposure*exposureScale;target.fogDensity=preset.fog;target.windSpeed=preset.windSpeed;target.waveIntensity=preset.waveIntensity;
-    target.cloudCoverage=preset.cloudCoverage;target.rainIntensity=preset.rain;target.wetness=preset.wetness;target.foam=preset.foam;
+    target.cloudCoverage=resolvedName==='clear'?preset.cloudCoverage*.45:preset.cloudCoverage;target.rainIntensity=preset.rain;target.wetness=preset.wetness;target.foam=preset.foam;
     if (lockedHour == null && presetHours[resolvedName] != null) target.time=presetHours[resolvedName];
   }
   function setTime(hour){target.time=lockedHour ?? hour}
@@ -203,6 +207,8 @@ export function createEnvironmentSystem(scene, renderer) {
 
     state.sunRadiance.copy(DAY_SUN).lerp(LOW_SUN,horizonWeight*.88).lerp(OVERCAST_SUN,state.cloudCoverage*.38).lerp(state.sun,.28);
     skyUniforms.sunTint.value.copy(state.sunRadiance);
+    skyUniforms.clearSkyColor.value.copy(state.sky);
+    skyUniforms.clearSkyAmount.value=THREE.MathUtils.damp(skyUniforms.clearSkyAmount.value,clearConditions ? 1 : 0,1.5,dt);
     skyUniforms.sunDiscIntensity.value=THREE.MathUtils.damp(skyUniforms.sunDiscIntensity.value,4200*(1-state.cloudCoverage*.55),1.1,dt);
     const skyRadianceScale=clearConditions ? .024+state.cloudCoverage*.0015+horizonWeight*.001 : .021+state.cloudCoverage*.003+horizonWeight*.001;
     skyUniforms.skyRadianceScale.value=THREE.MathUtils.damp(skyUniforms.skyRadianceScale.value,skyRadianceScale,1.1,dt);
@@ -213,7 +219,7 @@ export function createEnvironmentSystem(scene, renderer) {
     sunVisual.group.position.copy(focusPosition).addScaledVector(sunDirection,SUN_DISTANCE);
     sunVisual.core.material.color.copy(state.sunRadiance); sunVisual.core.material.opacity=daylight*(1-state.cloudCoverage*.62);
     sunVisual.halo.material.color.copy(state.sunRadiance).lerp(LOW_SUN,horizonWeight*.42);
-    sunVisual.halo.material.opacity=daylight*(.07+horizonWeight*.14)*(1-state.cloudCoverage*.55);
+    sunVisual.halo.material.opacity=daylight*(.18+horizonWeight*.25)*(1-state.cloudCoverage*.55);
 
     hemisphere.color.copy(state.sky).lerp(state.horizon,horizonWeight*.12);
     hemisphere.groundColor.copy(state.deep);hemisphere.intensity=.48+daylight*altitudeLight*1.52;
