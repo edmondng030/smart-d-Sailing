@@ -54,7 +54,7 @@
         <button class="close" data-close>×</button><div class="modal-title"><p>準備出航</p><h2>天氣與時間</h2></div>
         <div class="weather-layout"><div><h3>選擇天氣</h3><div class="weather-grid">
           <button class="weather-card selected" data-weather="晴朗"><b>☀</b><span>晴朗</span></button><button class="weather-card" data-weather="多雲"><b>☁</b><span>多雲</span></button><button class="weather-card" data-weather="黃昏"><b>◐</b><span>黃昏</span></button><button class="weather-card" data-weather="霧氣"><b>≋</b><span>霧氣</span></button><button class="weather-card" data-weather="夜晚"><b>☾</b><span>夜晚</span></button><button class="weather-card locked"><b>🌧</b><span>雨天</span><small>等級 4</small></button>
-        </div></div><div class="time-panel"><h3>時間設定</h3><div class="time-arc"><span class="time-sun">●</span><i></i><b id="timeLabel">14:30</b></div><input id="timeRange" type="range" min="6" max="22" step=".5" value="14.5"/><h3>帆風強度</h3><div class="segmented"><button>微風</button><button class="selected">適中</button><button>強風</button></div></div></div>
+        </div></div><div class="time-panel"><h3>時間設定</h3><div class="time-arc"><span class="time-sun">●</span><i></i><b id="timeLabel">14:30</b></div><input id="timeRange" type="range" min="0" max="23.5" step=".5" value="14.5" aria-label="航行時間"/><h3>帆風強度</h3><div class="segmented"><button>微風</button><button class="selected">適中</button><button>強風</button></div></div></div>
         <button class="cta" data-action="start">開始航行 <span>→</span></button>
       </div>
 
@@ -67,7 +67,27 @@
         <div class="map-lines"></div><div class="island isle1"><i></i><span>翡翠灣<br><small>已探索</small></span></div><div class="island isle2"><i></i><span>燈塔島<br><small>距離 3.2 nm</small></span></div><div class="island isle3 locked-isle"><i></i><span>迷霧群島<br><small>未知水域</small></span></div><div class="ship-marker">▲<span>你的位置</span></div><div class="treasure">◆</div><div class="map-stats"><p>探索進度</p><b>28%</b><progress value="28" max="100"></progress><hr><span>☼ 港口　◆ 寶藏　▲ 航標</span></div>
       </div></div>
 
-      <div class="modal settings-modal" id="settings"><button class="close" data-close>×</button><div class="modal-title"><p>偏好設定</p><h2>設定</h2></div><div class="settings-layout"><div class="settings-nav"><button class="active">遊戲</button><button>音效</button><button>操作</button><button>語言</button></div><div class="settings-content"><label>畫面品質 <select id="qualitySelect"><option value="ultra">極致</option><option value="high" selected>高</option><option value="medium">中</option><option value="low">低</option></select></label><label>亮度 <input id="brightness" type="range" min="40" max="130" value="100"></label><label>音樂 <input type="range" value="72"></label><label>音效 <input type="range" value="82"></label><label class="toggle-row">動態相機 <input id="motionToggle" type="checkbox" checked><i></i></label></div></div><button class="cta small" data-close>儲存設定</button></div>
+      <div class="modal settings-modal" id="settings">
+        <button class="close" data-close aria-label="關閉設定">×</button>
+        <div class="modal-title"><p>偏好設定</p><h2>設定</h2></div>
+        <div class="settings-layout">
+          <div class="settings-nav"><button class="active">航行</button><button>畫面</button><button>音效</button><button>操作</button></div>
+          <div class="settings-content">
+            <section class="settings-section" aria-labelledby="environmentSettingsTitle">
+              <div class="settings-section-heading"><div><small>SAILING CONDITIONS</small><h3 id="environmentSettingsTitle">航行環境</h3></div><span class="live-badge">即時套用</span></div>
+              <label class="setting-control setting-select"><span><b>天氣</b><small>調整天空、光線、霧氣與海色</small></span><select id="settingsWeatherSelect"><option value="clear">晴朗</option><option value="cloudy">多雲</option><option value="sunset">黃昏</option><option value="fog">霧氣</option><option value="night">夜晚</option></select></label>
+              <label class="setting-control setting-range"><span><b>時間</b><output id="settingsTimeValue" for="settingsTimeRange">14:30</output></span><input id="settingsTimeRange" type="range" min="0" max="23.5" step=".5" value="14.5" aria-label="航行時間"></label>
+              <label class="setting-control setting-range"><span><b>海浪起伏</b><output id="waveIntensityValue" for="waveIntensityRange">適中 · 100%</output></span><input id="waveIntensityRange" type="range" min=".35" max="1.6" step=".05" value="1" aria-label="海浪起伏程度"></label>
+            </section>
+            <section class="settings-section compact-settings" aria-label="顯示與操作設定">
+              <label class="setting-control setting-select"><span><b>畫面品質</b><small>較高品質需要更強的裝置效能</small></span><select id="qualitySelect"><option value="ultra">極致</option><option value="high" selected>高</option><option value="medium">中</option><option value="low">低</option></select></label>
+              <label class="setting-control setting-range"><span><b>亮度</b></span><input id="brightness" type="range" min="40" max="130" value="100" aria-label="畫面亮度"></label>
+              <label class="setting-control toggle-row"><span><b>動態相機</b><small>跟隨船身搖擺與速度變化</small></span><input id="motionToggle" type="checkbox" checked><i></i></label>
+            </section>
+          </div>
+        </div>
+        <button class="cta small" data-close>完成</button>
+      </div>
       <div class="modal help-modal" id="help"><button class="close" data-close>×</button><div class="modal-title"><p>航海指南</p><h2>船長，準備好了嗎？</h2></div><div class="key-grid"><span><kbd>W</kbd><kbd>S</kbd><b>調整船帆</b></span><span><kbd>A</kbd><kbd>D</kbd><b>改變航向</b></span><span><kbd>Space</kbd><b>加速</b></span><span><kbd>M</kbd><b>開啟海圖</b></span></div><p class="help-copy">留意風向，調整船帆角度，在群島間自由航行。探索未知海域、發現寶藏，寫下屬於你的航海日誌。</p><button class="cta small" data-close>明白了</button></div>
     </div>
     <div class="toast" id="toast"></div>

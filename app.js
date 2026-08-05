@@ -19,9 +19,13 @@ const $=(selector,parent=document)=>parent.querySelector(selector);
 const $$=(selector,parent=document)=>[...parent.querySelectorAll(selector)];
 const clamp=THREE.MathUtils.clamp;
 const launchParams=new URLSearchParams(location.search);
+const preferencesKey='sail-away-preferences-v2';
+const savedPreferences=(()=>{try{return JSON.parse(localStorage.getItem(preferencesKey))||{}}catch{return {}}})();
+const weatherNames=['clear','cloudy','sunset','fog','night'];
+const savedHour=Number(savedPreferences.hour),savedWaveIntensity=Number(savedPreferences.waveIntensity);
 const requestedQuality=launchParams.get('quality');
-const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:chooseInitialQuality();
-const appState={mode:'menu',weather:'clear',hour:14.5,quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:true,keys:new Set()};
+const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:(QUALITY_PRESETS[savedPreferences.quality]?savedPreferences.quality:chooseInitialQuality());
+const appState={mode:'menu',weather:weatherNames.includes(savedPreferences.weather)?savedPreferences.weather:'clear',hour:clamp(Number.isFinite(savedHour)?savedHour:14.5,0,23.5),waveIntensity:clamp(Number.isFinite(savedWaveIntensity)?savedWaveIntensity:1,.35,1.6),quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:savedPreferences.motion!==false,keys:new Set()};
 
 const scene=new THREE.Scene();
 const camera=createCamera();
@@ -40,28 +44,48 @@ const visualValidation=createVisualValidation({renderer,camera,ocean,followCamer
 applyQuality(appState.quality,environment.sunLight);
 
 const overlay=$('#overlay'),toast=$('#toast');
-function openModal(id){$$('.modal').forEach(modal=>modal.classList.remove('open'));const modal=$('#'+id);if(!modal)return;overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');modal.classList.add('open');if(id==='customize')requestAnimationFrame(initPreview)}
+function openModal(id){$$('.modal').forEach(modal=>modal.classList.remove('open'));const modal=$('#'+id);if(!modal)return;overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');modal.classList.add('open');if(id==='customize')requestAnimationFrame(initPreview);if(id==='settings')syncSettingsControls()}
 function closeModal(){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');$$('.modal').forEach(modal=>modal.classList.remove('open'))}
 function showToast(message){toast.textContent=message;toast.classList.add('show');clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove('show'),1800)}
 function showScreen(id){$$('.screen').forEach(screen=>screen.classList.remove('active'));$('#'+id).classList.add('active');appState.mode=id}
 function applyBoatStyle(root=boatRoot){const high=root.userData.high;if(!high)return;const sailColours={classic:['#fff6df','#eee3cc'],navy:['#173b53','#274f67'],regatta:['#e4ad52','#f3e7d1']}[appState.sail];high.userData.sail.material.color.set(sailColours[0]);high.userData.jib.material.color.set(sailColours[1]);high.userData.hullMaterial.color.set(appState.hull)}
 
+function formatTime(value){const totalMinutes=Math.round(value*60)%(24*60),hour=Math.floor(totalMinutes/60),minutes=totalMinutes%60;return String(hour).padStart(2,'0')+':'+String(minutes).padStart(2,'0')}
+function describeWaves(value){if(value<.58)return '平靜';if(value<.9)return '和緩';if(value<1.2)return '適中';if(value<1.43)return '強浪';return '洶湧'}
+function persistPreferences(){try{localStorage.setItem(preferencesKey,JSON.stringify({weather:appState.weather,hour:appState.hour,waveIntensity:appState.waveIntensity,quality:appState.quality,motion:appState.motion}))}catch{}}
+function syncSettingsControls(){
+  const timeText=formatTime(appState.hour),waveText=describeWaves(appState.waveIntensity)+' · '+Math.round(appState.waveIntensity*100)+'%';
+  const settingsWeather=$('#settingsWeatherSelect');if(settingsWeather)settingsWeather.value=appState.weather;
+  for(const selector of ['#timeRange','#settingsTimeRange']){const control=$(selector);if(control){control.value=appState.hour;control.setAttribute('aria-valuetext',timeText)}}
+  if($('#timeLabel'))$('#timeLabel').textContent=timeText;if($('#settingsTimeValue'))$('#settingsTimeValue').textContent=timeText;
+  const sun=$('.time-sun');if(sun)sun.style.left=(8+(appState.hour/23.5)*84)+'%';
+  const waveControl=$('#waveIntensityRange');if(waveControl){waveControl.value=appState.waveIntensity;waveControl.setAttribute('aria-valuetext',waveText)}
+  if($('#waveIntensityValue'))$('#waveIntensityValue').textContent=waveText;
+  $$('.weather-card:not(.locked)').forEach((card,index)=>card.classList.toggle('selected',weatherNames[index]===appState.weather));
+  if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;if($('#motionToggle'))$('#motionToggle').checked=appState.motion;
+}
+function applyWeather(name,{announce=true}={}){if(!weatherNames.includes(name))return;appState.weather=name;environment.setPreset(name);environment.setTime(appState.hour);environment.target.waveIntensity=appState.waveIntensity;syncSettingsControls();persistPreferences();if(announce)showToast({clear:'晴朗',cloudy:'多雲',sunset:'黃昏',fog:'霧氣',night:'夜晚'}[name]+'環境載入中')}
+function setSailingTime(value){appState.hour=clamp(Number(value),0,23.5);environment.setTime(appState.hour);syncSettingsControls();persistPreferences()}
+function setWaveIntensity(value){appState.waveIntensity=clamp(Number(value),.35,1.6);environment.target.waveIntensity=appState.waveIntensity;syncSettingsControls();persistPreferences()}
+
 $$('[data-open]').forEach(button=>button.addEventListener('click',()=>openModal(button.dataset.open)));
 $$('[data-close]').forEach(button=>button.addEventListener('click',closeModal));
 overlay.addEventListener('pointerdown',event=>{if(event.target===overlay)closeModal()});
 
-const weatherNames=['clear','cloudy','sunset','fog','night'];
-$$('.weather-card:not(.locked)').forEach((card,index)=>card.addEventListener('click',()=>{$$('.weather-card').forEach(item=>item.classList.remove('selected'));card.classList.add('selected');appState.weather=weatherNames[index];environment.setPreset(appState.weather);showToast(card.querySelector('span').textContent+'環境載入中')}));
-$('#timeRange')?.addEventListener('input',event=>{const value=+event.target.value,hour=Math.floor(value),minutes=value%1?'30':'00';$('#timeLabel').textContent=`${String(hour).padStart(2,'0')}:${minutes}`;appState.hour=value;environment.setTime(value)});
+$$('.weather-card:not(.locked)').forEach((card,index)=>card.addEventListener('click',()=>applyWeather(weatherNames[index])));
+$('#timeRange')?.addEventListener('input',event=>setSailingTime(event.target.value));
+$('#settingsWeatherSelect')?.addEventListener('change',event=>applyWeather(event.target.value));
+$('#settingsTimeRange')?.addEventListener('input',event=>setSailingTime(event.target.value));
+$('#waveIntensityRange')?.addEventListener('input',event=>setWaveIntensity(event.target.value));
 $$('.segmented button').forEach((button,index)=>button.addEventListener('click',()=>{$$('.segmented button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');environment.target.windSpeed=[3,6,10][index]}));
 $$('.tabs button').forEach(button=>button.addEventListener('click',()=>{$$('.tabs button').forEach(item=>item.classList.remove('active'));button.classList.add('active');$$('.tab-content').forEach(panel=>panel.classList.add('hidden'));$('#'+button.dataset.tab)?.classList.remove('hidden')}));
 $$('.sail-options button').forEach((button,index)=>button.addEventListener('click',()=>{$$('.sail-options button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');appState.sail=['classic','navy','regatta'][index];applyBoatStyle();if(previewBoat)applyBoatStyle(previewBoat);showToast('帆布已裝備')}));
 $$('.color-options button').forEach(button=>button.addEventListener('click',()=>{$$('.color-options button').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');appState.hull=getComputedStyle(button).getPropertyValue('--c').trim()||'#8f5539';applyBoatStyle();if(previewBoat)applyBoatStyle(previewBoat);showToast('船身塗裝已更新')}));
 
-function setQuality(name){if(!QUALITY_PRESETS[name])return;appState.quality=name;applyQuality(name,environment.sunLight);ocean.setQuality(name);wake.setQuality(name);environment.setQuality(name);showToast(`畫面品質：${name.toUpperCase()}`)}
+function setQuality(name){if(!QUALITY_PRESETS[name])return;appState.quality=name;applyQuality(name,environment.sunLight);ocean.setQuality(name);wake.setQuality(name);environment.setQuality(name);persistPreferences();showToast(`畫面品質：${name.toUpperCase()}`)}
 $('#qualitySelect')?.addEventListener('change',event=>setQuality(event.target.value));
 $('#brightness')?.addEventListener('input',event=>{environment.target.exposure=+event.target.value/100});
-$('#motionToggle')?.addEventListener('change',event=>{appState.motion=event.target.checked});
+$('#motionToggle')?.addEventListener('change',event=>{appState.motion=event.target.checked;persistPreferences()});
 
 function handleAction(action,button){
   if(action==='start'){closeModal();showScreen('game');audio.start();audio.resume();boatPhysics.setVelocity(-2.6);showToast('航程開始 — 一路順風！')}
@@ -130,4 +154,4 @@ function animate(){
   updateHud(physics);
 }
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY_PRESETS[appState.quality].pixelRatio));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const host=$('.boat-preview');previewRenderer.setSize(host.clientWidth,host.clientHeight,false);previewCamera.aspect=host.clientWidth/host.clientHeight;previewCamera.updateProjectionMatrix()}});
-applyBoatStyle();if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;environment.setPreset('clear');environment.setTime(14.5);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
+applyBoatStyle();applyWeather(appState.weather,{announce:false});setSailingTime(appState.hour);setWaveIntensity(appState.waveIntensity);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
