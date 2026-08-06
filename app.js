@@ -5,6 +5,7 @@ import { chooseInitialQuality, QUALITY_PRESETS, BOAT } from './src/config.js';
 import { createRenderer, createCamera } from './src/core/renderer.js';
 import { createOceanSystem } from './src/systems/ocean.js';
 import { createEnvironmentSystem } from './src/systems/environment.js';
+import { createVictory } from './src/systems/victory/index.js';
 import { createBoatVisual, createBoatPhysics } from './src/systems/boat.js';
 import { createFollowCamera } from './src/systems/camera.js';
 import { createWorldSystem } from './src/systems/world.js';
@@ -25,7 +26,7 @@ const weatherNames=['clear','cloudy','sunset','fog','night'];
 const savedHour=Number(savedPreferences.hour),savedWaveIntensity=Number(savedPreferences.waveIntensity);
 const requestedQuality=launchParams.get('quality');
 const initialQuality=QUALITY_PRESETS[requestedQuality]?requestedQuality:(QUALITY_PRESETS[savedPreferences.quality]?savedPreferences.quality:chooseInitialQuality());
-const appState={mode:'menu',weather:weatherNames.includes(savedPreferences.weather)?savedPreferences.weather:'clear',hour:clamp(Number.isFinite(savedHour)?savedHour:14.5,0,23.5),waveIntensity:clamp(Number.isFinite(savedWaveIntensity)?savedWaveIntensity:1,.35,1.6),quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,freeView:false,sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:savedPreferences.motion!==false,keys:new Set()};
+const appState={mode:'menu',weather:weatherNames.includes(savedPreferences.weather)?savedPreferences.weather:'clear',hour:clamp(Number.isFinite(savedHour)?savedHour:14.5,0,23.5),waveIntensity:clamp(Number.isFinite(savedWaveIntensity)?savedWaveIntensity:1,.35,1.6),quality:initialQuality,speed:0,heading:0,anchored:false,camera:0,freeView:false,ship:savedPreferences.ship==='victory'?'victory':'sloop',sailTrim:.82,rudder:0,touchRudder:0,touchTrim:0,sail:'classic',hull:'#8f5539',motion:savedPreferences.motion!==false,keys:new Set()};
 
 const scene=new THREE.Scene();
 const camera=createCamera();
@@ -33,6 +34,9 @@ const {renderer,applyQuality}=createRenderer($('#world'),appState.quality);
 const environment=createEnvironmentSystem(scene,renderer);
 const ocean=createOceanSystem(scene,renderer,appState.quality);
 const worldSystem=createWorldSystem(scene);
+const victory=createVictory({scale:.72,sailsVisible:true,riggingVisible:true,shadows:true,quality:appState.quality});
+victory.group.position.set(-34,0,-94);victory.group.rotation.y=-.62;
+scene.add(victory.group);
 const boatRoot=createBoatVisual(renderer);scene.add(boatRoot);
 const physicsWorld=new RAPIER.World({x:0,y:-9.81,z:0});physicsWorld.timestep=1/60;
 const boatPhysics=createBoatPhysics(RAPIER,physicsWorld,boatRoot,ocean);
@@ -59,9 +63,11 @@ function updateFreeView(){updateFreeViewAnchor();freeViewDelta.subVectors(freeVi
 function showScreen(id){$$('.screen').forEach(screen=>screen.classList.remove('active'));$('#'+id).classList.add('active');appState.mode=id}
 function applyBoatStyle(root=boatRoot){const high=root.userData.high;if(!high)return;const sailColours={classic:['#fff6df','#eee3cc'],navy:['#173b53','#274f67'],regatta:['#e4ad52','#f3e7d1']}[appState.sail];high.userData.sail.material.color.set(sailColours[0]);high.userData.jib.material.color.set(sailColours[1]);high.userData.hullMaterial.color.set(appState.hull)}
 
+function setShip(name,{announce=true}={}){const useVictory=name==='victory';appState.ship=useVictory?'victory':'sloop';victory.setWaterSurface({height:0,normal:new THREE.Vector3(0,1,0)});boatRoot.userData.lod.visible=!useVictory;if(useVictory){boatRoot.add(victory.group);victory.group.position.set(0,0,0);victory.group.rotation.set(0,0,0);victory.group.scale.setScalar(.115)}else{scene.add(victory.group);victory.group.position.set(-34,0,-94);victory.group.rotation.set(0,-.62,0);victory.group.scale.setScalar(.72)}syncSettingsControls();persistPreferences();if(announce)showToast(useVictory?'已切換至 HMS Victory':'已切換至經典小帆船')}
+
 function formatTime(value){const totalMinutes=Math.round(value*60)%(24*60),hour=Math.floor(totalMinutes/60),minutes=totalMinutes%60;return String(hour).padStart(2,'0')+':'+String(minutes).padStart(2,'0')}
 function describeWaves(value){if(value<.58)return '平靜';if(value<.9)return '和緩';if(value<1.2)return '適中';if(value<1.43)return '強浪';return '洶湧'}
-function persistPreferences(){try{localStorage.setItem(preferencesKey,JSON.stringify({weather:appState.weather,hour:appState.hour,waveIntensity:appState.waveIntensity,quality:appState.quality,motion:appState.motion}))}catch{}}
+function persistPreferences(){try{localStorage.setItem(preferencesKey,JSON.stringify({weather:appState.weather,hour:appState.hour,waveIntensity:appState.waveIntensity,quality:appState.quality,ship:appState.ship,motion:appState.motion}))}catch{}}
 function syncSettingsControls(){
   const timeText=formatTime(appState.hour),waveText=describeWaves(appState.waveIntensity)+' · '+Math.round(appState.waveIntensity*100)+'%';
   const settingsWeather=$('#settingsWeatherSelect');if(settingsWeather)settingsWeather.value=appState.weather;
@@ -71,7 +77,7 @@ function syncSettingsControls(){
   const waveControl=$('#waveIntensityRange');if(waveControl){waveControl.value=appState.waveIntensity;waveControl.setAttribute('aria-valuetext',waveText)}
   if($('#waveIntensityValue'))$('#waveIntensityValue').textContent=waveText;
   $$('.weather-card:not(.locked)').forEach((card,index)=>card.classList.toggle('selected',weatherNames[index]===appState.weather));
-  if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;if($('#motionToggle'))$('#motionToggle').checked=appState.motion;
+  if($('#qualitySelect'))$('#qualitySelect').value=appState.quality;if($('#shipSelect'))$('#shipSelect').value=appState.ship;if($('#motionToggle'))$('#motionToggle').checked=appState.motion;
 }
 function applyWeather(name,{announce=true}={}){if(!weatherNames.includes(name))return;appState.weather=name;environment.setPreset(name);environment.setTime(appState.hour);environment.target.waveIntensity=appState.waveIntensity;syncSettingsControls();persistPreferences();if(announce)showToast({clear:'晴朗',cloudy:'多雲',sunset:'黃昏',fog:'霧氣',night:'夜晚'}[name]+'環境載入中')}
 function setSailingTime(value){appState.hour=clamp(Number(value),0,23.5);environment.setTime(appState.hour);syncSettingsControls();persistPreferences()}
@@ -97,6 +103,7 @@ $('#brightness')?.addEventListener('input',event=>{environment.target.exposure=+
 $('#motionToggle')?.addEventListener('change',event=>{appState.motion=event.target.checked;persistPreferences()});
 
 function handleAction(action,button){
+$('#shipSelect')?.addEventListener('change',event=>setShip(event.target.value));
   if(action==='start'){closeModal();showScreen('game');audio.start();audio.resume();boatPhysics.setVelocity(-2.6);showToast('航程開始 — 一路順風！')}
   if(action==='continue'){showScreen('game');audio.start();audio.resume();showToast('已載入上次航程')}
   if(action==='home'){showScreen('menu')}
@@ -153,6 +160,7 @@ function animate(){
   const rudder=clamp((appState.keys.has('a')?1:0)-(appState.keys.has('d')?1:0)+appState.touchRudder,-1,1);const trimInput=(appState.keys.has('w')?1:0)-(appState.keys.has('s')?1:0)+appState.touchTrim;if(trimInput)appState.sailTrim=clamp(appState.sailTrim+Math.sign(trimInput)*dt*.45,.2,1);
   const env=environment.update(dt,simulationTime,boatRoot.position);ocean.setWaveIntensity(env.waveIntensity);ocean.update(dt,simulationTime,env,boatRoot.position);
   const physics=boatPhysics.update(dt,simulationTime,env,{rudder,sailTrim:appState.sailTrim,anchored:appState.anchored||appState.mode==='menu'});
+  if(appState.ship!=='victory')victory.setWaterSurface(ocean.sampleOceanSurface(victory.group.position.x,victory.group.position.z,simulationTime));
   boatRoot.userData.lod.update(camera);worldSystem.update(dt,simulationTime,env);wake.update(dt,simulationTime,boatRoot,physics.speedKnots);audio.update(physics.speedKnots,env);debug.update(simulationTime);
   if(appState.freeView){updateFreeView()}
   else if(appState.mode==='game'){followCamera.update(dt,{position:boatRoot.position,quaternion:boatRoot.quaternion,angularHint:rudder},physics.speedKnots,env,appState.motion)}
@@ -170,4 +178,4 @@ function animate(){
   updateHud(physics);
 }
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY_PRESETS[appState.quality].pixelRatio));camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(previewRenderer){const host=$('.boat-preview');previewRenderer.setSize(host.clientWidth,host.clientHeight,false);previewCamera.aspect=host.clientWidth/host.clientHeight;previewCamera.updateProjectionMatrix()}});
-applyBoatStyle();syncFreeViewControls();applyWeather(appState.weather,{announce:false});setSailingTime(appState.hour);setWaveIntensity(appState.waveIntensity);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
+applyBoatStyle();setShip(appState.ship,{announce:false});syncFreeViewControls();applyWeather(appState.weather,{announce:false});setSailingTime(appState.hour);setWaveIntensity(appState.waveIntensity);if(visualValidation.enabled){showScreen('game');appState.anchored=true;boatPhysics.setVelocity(0)}document.body.classList.add('three-ready');animate();
